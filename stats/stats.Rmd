@@ -1,6 +1,6 @@
 ---
 title: "Comparing haplodiploid and diploid simulations"
-author: "Dr Roddy Pracana, Queen Mary Univeristy of London"
+author: "Dr Roddy Pracana, Queen Mary University of London"
 date: "19/05/2021"
 output: html_document
 ---
