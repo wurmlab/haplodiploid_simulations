@@ -1,0 +1,47 @@
+initialize() {
+	initializeMutationRate(1e-7);
+	defineConstant("K", 1000);
+	initializeMutationType("m1", 0.0, "f", -0.010);
+	m1.convertToSubstitution = T;
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 99999);
+	initializeRecombinationRate(1e-6);
+}
+
+1 {
+	sim.addSubpop("p1", 1000);
+	print("Generation, FixedMutations, NucleotideHeterozygosity");
+}
+
+10000: late() {
+	if (sim.generation % 100 == 0)
+	{
+		fixedVector = sim.substitutions.size();
+
+		total = 0.0 ;
+
+		for (ind in p1.individuals) {
+	 	// Calculate the nucleotide heterozygosity of this individual
+			muts0 = ind.genomes[0].mutations;
+	 		muts1 = ind.genomes[1].mutations;
+
+		// Count the shared mutations
+			shared_count = sum(match(muts0, muts1) >= 0);
+
+		// All remaining mutations are unshared (i.e. heterozygous)
+		 	unshared_count = muts0.size() + muts1.size() - 2 * shared_count;
+
+		// pi is the mean heterozygosity across the chromosome
+		 	pi_ind = unshared_count / (sim.chromosome.lastPosition + 1);
+		 	total = total + pi_ind;
+		}
+
+		pi = total / p1.individuals.size();
+
+		print(c(sim.generation, fixedVector, pi));
+	}
+}
+
+50000 late() {
+sim.simulationFinished();
+}

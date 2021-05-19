@@ -1,0 +1,117 @@
+initialize() {
+  initializeSLiMModelType("nonWF");
+  initializeSLiMOptions(keepPedigrees= T);
+  defineConstant("K", 1000);
+  initializeMutationRate(1e-7);
+  initializeMutationType("m1", 0.0, "f", -0.010);
+  m1.convertToSubstitution = T;
+  initializeGenomicElementType("g1", m1, 1.0);
+  initializeGenomicElement(g1, 0, 99999);
+  initializeRecombinationRate(1e-6);
+  initializeSex("A");
+}
+
+reproduction() {
+  inds = p1.individuals;
+  is_female = (inds.sex == "F");
+  is_male = !is_female;
+  females = inds[is_female];
+  males = inds[is_male];
+  chr = sim.chromosome;
+
+  fit = p1.cachedFitness(NULL);
+  FemWeights = fit[is_female];
+  MaleWeights = fit[is_male];
+
+  sampledFemalesHap = sample(females, asInteger(K/2), T, weights = FemWeights);
+  sampledFemalesDip = sample(females, asInteger(K/2), T, weights = FemWeights);
+  sampledMales = sample(males, asInteger(K/2), T, weights = MaleWeights);
+
+  for (sampledFemale in sampledFemalesHap) {
+    breaks = chr.drawBreakpoints(sampledFemale);
+    if (rbinom(1, 1, 0.5))
+      p1.addRecombinant(strand1 = sampledFemale.genome1, strand2 = sampledFemale.genome2, breaks1 = breaks, strand3 = NULL, strand4 = NULL, breaks2 = NULL, sex = "M");
+    else
+      p1.addRecombinant(strand1 = sampledFemale.genome2, strand2 = sampledFemale.genome1, breaks1 = breaks, strand3 = NULL, strand4 = NULL, breaks2 = NULL, sex = "M");
+  }
+
+  for (i in seqAlong(sampledFemalesDip)) {
+    sampledFemale = sampledFemalesDip[i];
+    sampledMale = sampledMales[i];
+    breaks = chr.drawBreakpoints(sampledFemale);
+    if (rbinom(1, 1, 0.5))
+      p1.addRecombinant(strand1 = sampledFemale.genome1, strand2 = sampledFemale.genome2, breaks1 = breaks, strand3 = sampledMale.genome1, strand4 = NULL, breaks2 = NULL, sex = "F");
+    else
+      p1.addRecombinant(strand1 = sampledFemale.genome2, strand2 = sampledFemale.genome1, breaks1 = breaks, strand3 = sampledMale.genome1, strand4 = NULL, breaks2 = NULL, sex = "F");
+  }
+
+  self.active = 0;
+}
+
+1 {
+  sim.addSubpop("p1", K);
+  print("Generation, FixedMutations, NucleotideHeterozygosity");
+}
+
+early() {
+  inds = sim.subpopulations.individuals;
+  inds[inds.age > 0].fitnessScaling = 0.0;
+  inds[inds.age == 0].fitnessScaling = 1000.0; //making fitness of all individuals sufficiently high so as to avoid fitness-based mortality
+}
+
+early() {
+  inds = sim.subpopulations.individuals;
+  genomeCount = inds.size() + sum(inds.sex == "F");
+  muts  = sim.mutationsOfType(m1);
+  mutCounts = sim.mutationCounts(NULL, muts);
+  fixedMuts = muts[mutCounts == genomeCount];
+
+  if (fixedMuts.size())
+    inds.genomes.removeMutations(fixedMuts, T);
+}
+
+fitness(m1) {
+  // homozygotes and females use the standard fitness calculation
+  if (homozygous)
+  return relFitness;
+  if (individual.sex == "F")
+  return relFitness;
+  // heterozygous males (i.e. haploids that have one copy of the mutation)
+  // get a different fitness value, using an X-dominance coefficient; here
+  // we use 1.0 as the X-dominance coefficient, as if the haploid were
+  // homozygous diploid for the mutation, but this can be changed
+  return 1.0 + 1.0 * mut.selectionCoeff;
+}
+
+
+10000: late() {
+  if (sim.generation % 100 == 0)
+  {
+    fixedVector = sim.substitutions.size();
+    total = 0.0 ;
+    for (ind in p1.individuals) {
+
+     	// Calculate the nucleotide heterozygosity of this individual
+    muts0 = ind.genomes[0].mutations;
+
+     		muts1 = ind.genomes[1].mutations;
+
+    // Count the shared mutations
+    shared_count = sum(match(muts0, muts1) >= 0);
+    // All remaining mutations are unshared (i.e. heterozygous)
+     	unshared_count = muts0.size() + muts1.size() - 2 * shared_count;
+    // pi is the mean heterozygosity across the chromosome
+     	pi_ind = unshared_count / (sim.chromosome.lastPosition + 1);
+     	total = total + pi_ind;
+    }
+
+    pi = total / p1.individuals.size();
+
+    print(c(sim.generation, fixedVector, pi));
+  }
+
+}
+
+50000 late() {
+  sim.simulationFinished();
+}

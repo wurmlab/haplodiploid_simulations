@@ -1,0 +1,471 @@
+---
+title: "Comparing haplodiploid and diploid simulations"
+author: "Roddy Pracana"
+date: "24/02/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE, cache = FALSE}
+
+
+make_sci <- function(x) {
+    sprintf("%.1fx10^{%d}", 
+          x/10^floor(log10(abs(x))), 
+          floor(log10(abs(x))))  
+}
+
+pretty_number_inner <- function(x) {
+  if (is.na(x)) {
+    x <- NA
+  } else if (x == 0) {
+    x <- as.character(x)
+  } else if (x < 1e-4) {
+    x <- as.character(make_sci(x))
+  } else if  (x < 1e-2) {
+     x <- as.character(round(x, 4))
+  } else if (x < 1e4) {
+     x <- as.character(round(x, 2))
+  } else {
+     x <- as.character(make_sci(x))
+  }
+  return(x)
+}
+
+pretty_numbers <- function(x) {
+  sapply(x, pretty_number_inner)
+}
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(broom)
+library(tidyverse)
+library(patchwork)
+
+```
+
+## Introduction
+
+We have built a simulation environment for haplodiploid simulations. As a proof-of-concept, we compare simple simulations of haplodiploid populations with simulations of didplodiploid populations.
+
+In each simulation, we create a population with 500 males and 500 females. Each individual has a genome with 100,000 loci. At each generation, each individual produces gametes (with a mutation rate of $1\times10^{-7}$ and recombination) and mates with another individual of the opposite sex. The alleles produced by mutation have a given selective coefficient, which we change depending on the simulation condition. The inheritance of the genome onto the next generation is based on the sum of the selective coefficients of the alleles carried by each individual. In the haplodiploid simulation, males are haploid, produced by the non-fertilised gametes of diploid females. In diploid simulations, both males and females are diploid, and there is no sex chromosome.
+
+We ran the simulations where we varied the selection coefficient of new mutations. We ran the following simulations:
+
+* Neutral mutations only (S = 0%)
+* Advantageous mutations:
+  * Weakly advantageous mutations only (S = +0.1%)
+* Deleterious mutations:
+  * Highly deleterious mutations only (S = -10%)
+  * Mildly deleterious mutations only (S = -1%)
+  * Weakly deleterious mutations only (S = -0.1%)
+
+Each simulation was ran for 50,000 generations. For each simulation, we recorded the number of novel alleles that have become fixed (cumulatively) every 100th generation.
+
+```{r input_data}
+
+library(tidyverse)
+# read_input <- function(s, simulation) {
+#   
+#  path <- paste0("input/s", s, "_summary.csv")
+#  
+#  df <- read.csv(path)
+#  
+#  df <- filter(df, sim_id != "total")
+#  
+#  df$selection <- simulation
+# 
+#  df %>%
+#    select(-difference, -difference_per) %>%
+#    pivot_longer(c(-sim_id, -selection), names_to = "ploidy", values_to = "number_fixed") %>%
+#    mutate(ploidy = recode_factor(ploidy, dp = "diploid", hp = "haplodiploid")) %>%
+#    return()
+# }
+
+# Neutral simulations
+# neutral <- read_input("000", "0")
+# 
+# # Advantageous simulations
+# advantageous <- rbind(read_input("0.001", "0.001"),
+#                       read_input("0.003", "0.003"),
+#                       read_input("0.010", "0.010")
+# )
+# 
+# # Deleterious simulations
+# deleterious <- rbind(read_input("-001", "-0.001"),
+#                       read_input("-003", "-0.003"),
+#                       read_input("-010", "-0.010")
+# )
+
+read_path <- function(path) {
+  read.csv(path) %>%
+    rename(simulation_group = simulation_id) %>%
+    separate(simulation_group, c("simulation_run", "simulation_id"), remove = FALSE) %>%
+    mutate(simulation_id = as.numeric(simulation_id)) %>%
+    mutate(selection = paste0("s = ", 100*selection, "%")) %>%
+    mutate(selection = as.factor(selection)) %>%
+    mutate(ploidy = as.factor(ploidy)) %>%
+    mutate(ploidy = fct_relevel(ploidy, "haplodiploid", "diploid")) %>%
+    mutate(dominance = as.numeric(gsub("h", "", dominance))) %>%
+    mutate(dominance = paste0("h = ",dominance*100, "%")) %>%
+    mutate(dominance = as.factor(dominance)) %>%
+    return()
+}
+
+neutral <- read_path("input/neutral_mutations_h0.csv")
+advantageous <- read_path("input/advantageous_mutations_h0.csv")
+deleterious <- read_path("input/deleterious_mutations_h0.csv")
+
+```
+
+
+```{r plot_functions}
+
+line_plot_selection <- function(df) {
+  filter(df, simulation_id %in% 1:20) %>%
+  mutate(Ploidy = fct_recode(ploidy,
+                         "Haplodiploid"="haplodiploid",
+                         "Diploid"="diploid")) %>%
+    ggplot(aes(colour = Ploidy, x = generation, y = number_fixed, group = simulation_group)) +
+    geom_line(alpha = 0.5) +
+    facet_grid(cols = vars(selection)) +
+    xlab("Generation") +
+    ylab("Number of fixed mutations") +
+    theme_bw()  +
+    theme(panel.spacing = unit(1.4, "lines")) + scale_x_continuous(breaks=c(10000, 30000, 50000))
+}
+
+line_plot_domminance <- function(df) {
+  filter(df, simulation_id %in% 1:20) %>%
+  mutate(Ploidy = fct_recode(ploidy,
+                         "Haplodiploid"="haplodiploid",
+                         "Diploid"="diploid")) %>%
+  ggplot(aes(colour = Ploidy, x = generation, y = number_fixed, group = simulation_group)) +
+    geom_line(alpha = 0.5) +
+    facet_grid(cols = vars(dominance)) +
+    xlab("Generation") +
+    ylab("Number of fixed mutations") +
+    theme_bw() +
+    theme(panel.spacing = unit(1.4, "lines")) + scale_x_continuous(breaks=c(10000, 30000, 50000))
+}
+
+```
+
+## Simulations with neutral mutations
+
+For the neutral simulation, we expect the haplodiploid and diploid simulations to have the same fixation rate. Below, each line is a single simulation. The rate of fixation is the slope of those lines, or, in other words, the average number of fixed alleles per generation.
+
+```{r plot_fixation_rates_neutral}
+
+neutral_plot <- line_plot_selection(neutral)
+
+neutral_plot
+
+```
+
+To measure the fixation rate, we can look at the average number of fixed alleles at the end of the simulations.
+
+```{r}
+
+final_generation  <- 50000
+first_generation  <- 10000
+generation_length <- final_generation - first_generation
+
+filter(neutral, generation %in% c(first_generation, final_generation)) %>%
+  select(-simulation_group, -simulation_run, -nucleotide_diversity) %>%
+  pivot_wider(names_from = generation, values_from = number_fixed) %>%
+  mutate(number_fixed = `50000` - `10000`) %>%
+  select(-`50000`, -`10000`) -> neutral_final
+
+neutral_final %>%
+  pivot_wider(names_from = ploidy, values_from = number_fixed) ->
+  final_neutral_for_t_test
+
+neutral_final %>%
+  group_by(selection, ploidy) %>%
+  summarise(mean = mean(number_fixed)) ->
+  final_neutral_mean
+
+ggplot(neutral_final) +
+  geom_histogram(aes(x = number_fixed, fill = ploidy, colour = ploidy)) +
+  geom_vline(data = final_neutral_mean, aes(xintercept = mean)) +
+  facet_grid(vars(ploidy)) +
+  theme_bw()
+
+```
+
+An important point, is the the fixation rate of neutral mutations is the mutation rate. For diploids, the fixation probability of a new mutation is $1/(2N)$ (as it is present in that proportion when it appears) and the number of new mutations per generation is $2N\mu$, so that the fixation rate (fixation probability $\times$ mutation rate per generation, $1/(2N) \times 2N\mu$) is simply $\mu$. For haplodiploids, the same is true ($1/(1.5N) \times 1.5N\mu$). In our simulations, we have a mutation rate of $1\times10^{-7}$ and a genome with $100,000$ loci, giving us an expectation of 0.01 mutations per generation, or a total of 500 fixed mutations by generation 50,000.
+
+As expected, the average number of fixed alleles per generation is approximately 0.01 for both ploidy types.
+
+```{r}
+
+final_neutral_mean %>%
+  pivot_wider(names_from = ploidy, values_from = mean) %>%
+  mutate(haplodiploid_rate = haplodiploid / generation_length,
+         diploid_rate = diploid / generation_length,
+         rate_difference = haplodiploid_rate - diploid_rate,
+         difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
+
+as.data.frame(out_df)
+
+```
+
+However, there was a significant difference of just under 2% between the two ploidy types.
+
+```{r}
+
+t.test(final_neutral_for_t_test$diploid, final_neutral_for_t_test$haplodiploid)
+
+t.test(final_neutral_for_t_test$diploid, mu = 500)
+
+```
+
+## Simulations with advantageous mutations
+
+For the simulation where all mutations were advantageous, we expect the haplodiploid populations to fix alleles quicker, where the males (which are haploid) are under selection as soon as the mutation appears, whereas the mutation needs to be at high enough frequency to be in homozygous individuals before it is under selection. This is obvious in the simulations with the most highly advantageous mutations (S = +10%). 
+
+```{r plot_fixation_rates_advantageous, fig.width = 10, fig.height = 4}
+
+advantageous_plot <- line_plot_selection(advantageous)
+advantageous_plot
+
+```
+
+Again, to measure the fixation rate, we can look at the average number of fixed alleles at the end of the simulations.
+
+```{r, fig.width = 8, fig.heigh = 4}
+
+filter(advantageous, generation %in% c(first_generation, final_generation)) %>%
+  select(-simulation_group, -simulation_run, -nucleotide_diversity) %>%
+  pivot_wider(names_from = generation, values_from = number_fixed) %>%
+  mutate(number_fixed = `50000` - `10000`) %>%
+  select(-`50000`, -`10000`) -> advantageous_final
+
+advantageous_final %>%
+  pivot_wider(names_from = ploidy, values_from = number_fixed) ->
+  advantageous_for_t_test
+
+advantageous_final %>%
+  group_by(selection, ploidy) %>%
+  summarise(mean = mean(number_fixed)) ->
+  advantageous_mean
+
+ggplot(advantageous_final) +
+  geom_histogram(aes(x = number_fixed, fill = ploidy)) +
+  geom_vline(data = advantageous_mean, aes(xintercept = mean)) +
+  facet_grid(vars(ploidy), vars(selection)) +
+  theme_bw()
+
+
+```
+
+The fixation rate is higher than in the neutral simulations for all classes. As expected, haplodiploids have higher fixation rates than diploids.
+
+```{r}
+
+advantageous_mean %>%
+  pivot_wider(names_from = ploidy, values_from = mean) %>%
+  mutate(haplodiploid_rate = haplodiploid / generation_length,
+         diploid_rate = diploid / generation_length,
+         rate_difference = haplodiploid_rate - diploid_rate,
+         difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
+
+as.data.frame(out_df)
+
+```
+
+All comparisons are statistically significant:
+
+```{r}
+
+advantageous_for_t_test %>%
+  nest(-selection) %>%
+  mutate(model = map(data, ~ t.test(.$diploid, .$haplodiploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) -> t_test_out
+
+as.data.frame(t_test_out)
+
+```
+
+## Simulations with deleterious mutations
+
+For the deleterious mutations, we expect that the fixation rate will be lower than that of neutral or advantageous mutations. Interestingly, none of of the highly deleterious mutations (S=-10%) was fixed in the population.
+
+```{r plot_fixation_rates_deleterious, fig.width = 10, fig.height = 4, eval = TRUE}
+
+deleterious_plot <- line_plot_selection(deleterious)
+deleterious_plot
+
+```
+
+We can look at the fixation rate of the other two mutation types.
+
+```{r, fig.width = 5.5, fig.heigh = 4}
+
+filter(deleterious, generation %in% c(first_generation, final_generation)) %>%
+  select(-simulation_group, -simulation_run, -nucleotide_diversity) %>%
+  pivot_wider(names_from = generation, values_from = number_fixed) %>%
+  mutate(number_fixed = `50000` - `10000`) %>%
+  select(-`50000`, -`10000`) -> deleterious_final
+
+deleterious_final %>%
+  pivot_wider(names_from = ploidy, values_from = number_fixed) ->
+  deleterious_for_t_test
+
+deleterious_final %>%
+  group_by(selection, ploidy) %>%
+  summarise(mean = mean(number_fixed)) ->
+  deleterious_mean
+
+ggplot(deleterious_final) +
+  geom_histogram(aes(x = number_fixed, fill = ploidy)) +
+  geom_vline(data = deleterious_mean, aes(xintercept = mean)) +
+  facet_grid(vars(ploidy), vars(selection)) +
+  theme_bw()
+
+```
+
+The difference between haplodiploid and diploid observed for midly deleterious mutations is very large.
+
+```{r}
+
+
+deleterious_mean %>%
+  pivot_wider(names_from = ploidy, values_from = mean) %>%
+  mutate(haplodiploid_rate = haplodiploid / generation_length,
+         diploid_rate = diploid / generation_length,
+         rate_difference = haplodiploid_rate - diploid_rate,
+         difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
+
+as.data.frame(out_df)
+
+
+```
+
+However, the difference observed for the weakly deleterious mutations is not significant.
+
+```{r}
+
+
+deleterious_for_t_test %>%
+  nest(-selection) %>%
+  mutate(model = map(data, ~ t.test(.$diploid, .$haplodiploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) -> t_test_out
+
+as.data.frame(t_test_out)
+
+
+```
+
+## Simulation with varying levels of dominance coefficient
+
+```{r}
+
+dominant <- read_path("input/dominance_mutations_s001.csv")
+
+dominant_h0 <- filter(advantageous, selection == "s = 0.1%")
+dominant_h0$dominance <- as.factor(dominant_h0$dominance)
+
+rbind(dominant, dominant_h0) %>%
+  mutate(dominance = fct_relevel(dominance, "h = 0%", "h = 25%", "h = 50%", "h = 75%", "h = 100%")) ->
+  dominant
+
+
+final_generation  <- 50000
+first_generation  <- 0
+generation_length <- final_generation - first_generation
+
+```
+
+```{r plot_fixation_rates_deleterious, fig.width = 10, fig.height = 4, eval = TRUE}
+
+dominance_plot <- line_plot_domminance(dominant)
+print(dominance_plot)
+
+```
+
+
+```{r, fig.width = 5.5, fig.heigh = 4}
+
+filter(dominant, generation %in% final_generation) %>%
+  select(-simulation_group, -simulation_run, -nucleotide_diversity) -> dominant_final
+
+dominant_final %>%
+  pivot_wider(names_from = ploidy, values_from = number_fixed) ->
+  dominant_for_t_test
+
+dominant_final %>%
+  group_by(dominance, selection, ploidy) %>%
+  summarise(mean = mean(number_fixed)) ->
+  dominant_mean
+
+ggplot(dominant_final) +
+  geom_histogram(aes(x = number_fixed, fill = ploidy)) +
+  geom_vline(data = dominant_mean, aes(xintercept = mean)) +
+  facet_grid(vars(ploidy), vars(dominance)) +
+  theme_bw()
+
+```
+
+```{r}
+
+dominant_mean %>%
+  pivot_wider(names_from = ploidy, values_from = mean) %>%
+  mutate(haplodiploid_rate = haplodiploid / generation_length,
+         diploid_rate = diploid / generation_length,
+         rate_difference = haplodiploid_rate - diploid_rate,
+         difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
+
+as.data.frame(out_df)
+
+```
+
+```{r}
+
+dominant_for_t_test %>%
+  nest(-selection, -dominance) %>%
+  mutate(model = map(data, ~ t.test(.$diploid, .$haplodiploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) -> t_test_dominance
+
+as.data.frame(t_test_dominance)
+
+```
+
+
+## Make figures for manuscript
+
+```{r}
+
+require(gridExtra)
+
+
+pdf("results/figure1_A_B.pdf", width = 9, height = 3)
+grid.arrange(neutral_plot + theme(legend.position = "none", plot.margin = unit(c(0.4,6,0.5,0.5), "lines")),
+             advantageous_plot + theme(legend.position = "none", plot.margin = unit(c(0.5,1.5,0.5,0.5), "lines")),
+             ncol=2, widths = c(2,3+0.2))
+dev.off()
+
+pdf("results/figure1_C.pdf", width = 9, height = 3)
+deleterious_plot + theme(plot.margin = unit(c(0.5,3,0.5,0.5), "lines"))
+dev.off()
+
+pdf("results/figure1_D.pdf", width = 9, height = 3)
+dominance_plot + theme(legend.position = "none")
+dev.off()
+
+
+```
+
+## Make table for Supplementary
+
+```{r}
+
+as.data.frame(t_test_out) %>% head
+
+```
