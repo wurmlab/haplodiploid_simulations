@@ -1,7 +1,7 @@
 ---
 title: "Comparing haplodiploid and diploid simulations"
-author: "Roddy Pracana"
-date: "24/02/2020"
+author: "Dr Roddy Pracana, Queen Mary Univeristy of London"
+date: "19/05/2021"
 output: html_document
 ---
 
@@ -47,19 +47,16 @@ library(patchwork)
 
 We have built a simulation environment for haplodiploid simulations. As a proof-of-concept, we compare simple simulations of haplodiploid populations with simulations of didplodiploid populations.
 
-In each simulation, we create a population with 500 males and 500 females. Each individual has a genome with 100,000 loci. At each generation, each individual produces gametes (with a mutation rate of $1\times10^{-7}$ and recombination) and mates with another individual of the opposite sex. The alleles produced by mutation have a given selective coefficient, which we change depending on the simulation condition. The inheritance of the genome onto the next generation is based on the sum of the selective coefficients of the alleles carried by each individual. In the haplodiploid simulation, males are haploid, produced by the non-fertilised gametes of diploid females. In diploid simulations, both males and females are diploid, and there is no sex chromosome.
+In each simulation, we create a population with 500 males and 500 females. Each individual has a genome with 100,000 loci. At each generation, individuals produces gametes (with a mutation rate of $1\times10^{-7}$ and, for all but haploid males, a recombination rate of $1\times10^{-6}$). The alleles produced by mutation have a given selective coefficient, which we change depending on the simulation condition. The inheritance of the genome onto the next generation is based on the sum of the selective coefficients of the alleles carried by each individual. In the haplodiploid simulation, males are haploid, produced by the non-fertilised gametes of diploid females. In diploid simulations, both males and females are diploid, and there is no sex chromosome.
 
 We ran the simulations where we varied the selection coefficient of new mutations. We ran the following simulations:
 
 * Neutral mutations only (S = 0%)
-* Advantageous mutations:
-  * Weakly advantageous mutations only (S = +0.1%)
-* Deleterious mutations:
-  * Highly deleterious mutations only (S = -10%)
-  * Mildly deleterious mutations only (S = -1%)
-  * Weakly deleterious mutations only (S = -0.1%)
+* Recessive advantageous mutations
+* Recessive deleterious mutations
+* Advantageous mutations ranging from fully recessive to fully dominant.
 
-Each simulation was ran for 50,000 generations. For each simulation, we recorded the number of novel alleles that have become fixed (cumulatively) every 100th generation.
+Each simulation was ran for 50,000 generations. For each simulation, we recorded the number of novel alleles that have become fixed (cumulatively) every 100th generation. We ran 200 simulations per treatment.
 
 ```{r input_data}
 
@@ -193,7 +190,7 @@ ggplot(neutral_final) +
 
 ```
 
-An important point, is the the fixation rate of neutral mutations is the mutation rate. For diploids, the fixation probability of a new mutation is $1/(2N)$ (as it is present in that proportion when it appears) and the number of new mutations per generation is $2N\mu$, so that the fixation rate (fixation probability $\times$ mutation rate per generation, $1/(2N) \times 2N\mu$) is simply $\mu$. For haplodiploids, the same is true ($1/(1.5N) \times 1.5N\mu$). In our simulations, we have a mutation rate of $1\times10^{-7}$ and a genome with $100,000$ loci, giving us an expectation of 0.01 mutations per generation, or a total of 500 fixed mutations by generation 50,000.
+An important point, is the the fixation rate of neutral mutations is the mutation rate. For diploids, the fixation probability of a new mutation is $1/(2N)$ (as it is present in that proportion when it appears) and the number of new mutations per generation is $2N\mu$, so that the fixation rate (fixation probability $\times$ mutation rate per generation, $1/(2N) \times 2N\mu$) is simply $\mu$. For haplodiploids, the same is true ($1/(1.5N) \times 1.5N\mu$). In our simulations, we have a mutation rate of $1\times10^{-7}$ and a genome with $100,000$ loci, giving us an expectation of 0.01 mutations per generation, or a total of 400 fixed mutations between generation 10,000 and 50,000 (the first 10,000 are excluded as a burn-in).
 
 As expected, the average number of fixed alleles per generation is approximately 0.01 for both ploidy types.
 
@@ -210,19 +207,17 @@ as.data.frame(out_df)
 
 ```
 
-However, there was a significant difference of just under 2% between the two ploidy types.
+There was a significant difference of between the two ploidy types.
 
 ```{r}
 
 t.test(final_neutral_for_t_test$diploid, final_neutral_for_t_test$haplodiploid)
 
-t.test(final_neutral_for_t_test$diploid, mu = 500)
-
 ```
 
 ## Simulations with advantageous mutations
 
-For the simulation where all mutations were advantageous, we expect the haplodiploid populations to fix alleles quicker, where the males (which are haploid) are under selection as soon as the mutation appears, whereas the mutation needs to be at high enough frequency to be in homozygous individuals before it is under selection. This is obvious in the simulations with the most highly advantageous mutations (S = +10%). 
+For recessive mutations (h<0.5), for the simulation where all mutations were advantageous, we expect the haplodiploid populations to fix alleles quicker, where the males (which are haploid) are under selection as soon as the mutation appears, whereas the mutation needs to be at high enough frequency to be in homozygous individuals before it is under selection. The most highly advantageous mutations have the strongest effect. 
 
 ```{r plot_fixation_rates_advantageous, fig.width = 10, fig.height = 4}
 
@@ -231,7 +226,7 @@ advantageous_plot
 
 ```
 
-Again, to measure the fixation rate, we can look at the average number of fixed alleles at the end of the simulations.
+Again, to measure the fixation rate, we can look at the average number of fixed alleles at the end of the simulations (the first 10,000 generations are excluded as a burn-in).
 
 ```{r, fig.width = 8, fig.heigh = 4}
 
@@ -291,7 +286,7 @@ as.data.frame(t_test_out)
 
 ## Simulations with deleterious mutations
 
-For the deleterious mutations, we expect that the fixation rate will be lower than that of neutral or advantageous mutations. Interestingly, none of of the highly deleterious mutations (S=-10%) was fixed in the population.
+For the deleterious mutations, we expect that the fixation rate will be lower than that of neutral or advantageous mutations. Interestingly, none of of the highly deleterious mutations was fixed in the population.
 
 ```{r plot_fixation_rates_deleterious, fig.width = 10, fig.height = 4, eval = TRUE}
 
@@ -300,7 +295,7 @@ deleterious_plot
 
 ```
 
-We can look at the fixation rate of the other two mutation types.
+We can look at the fixation rate for eachselection coefficient.
 
 ```{r, fig.width = 5.5, fig.heigh = 4}
 
@@ -327,7 +322,7 @@ ggplot(deleterious_final) +
 
 ```
 
-The difference between haplodiploid and diploid observed for midly deleterious mutations is very large.
+The difference between haplodiploid and diploid observed for midly deleterious mutations is quite large.
 
 ```{r}
 
@@ -343,8 +338,6 @@ as.data.frame(out_df)
 
 
 ```
-
-However, the difference observed for the weakly deleterious mutations is not significant.
 
 ```{r}
 
@@ -362,6 +355,14 @@ as.data.frame(t_test_out)
 ```
 
 ## Simulation with varying levels of dominance coefficient
+
+The effect of selection depends on the dominance coefficient h. The difference between haplodiploids and diploid will be highest for fully recessive alleles and absent for fully dominant alleles. However, the number of novel mutations entering the population at each generation is fixed at 1/3 lower in haplodiploids relative to diploids:
+
+* For recessive mutations (h < 0.5), the effect haplodiploidy on selection is bigger than the effect of the number of novel mutations, so haplodiploids win.
+* For intermediate dominance (h = 0.5), the two effects cancel each other out, so there is no difference between haplodiploids and diploids
+* For dominant mutations (h>0.5), the effect haplodiploidy on selection is smaller than a third, i.e., smaller than the effect of the number of novel mutations. Therefore, diploids are better at fixing dominant mutations than haplodiploids. 
+
+We simulated advantageous mutations (s=0.1%) for a range of selection coefficients. The expected pattern is clearly visible:
 
 ```{r}
 
@@ -388,6 +389,7 @@ print(dominance_plot)
 
 ```
 
+There is no effect for mutations of intermediate dominance. Otherwise, haploidploid simulations are quicker at fixing recessive mutations and slower at fixing deleterious mutations. 
 
 ```{r, fig.width = 5.5, fig.heigh = 4}
 
@@ -436,7 +438,6 @@ dominant_for_t_test %>%
 as.data.frame(t_test_dominance)
 
 ```
-
 
 ## Make figures for manuscript
 
