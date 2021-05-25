@@ -133,27 +133,15 @@ fitness(m1) {
 	{
 		inds = sim.subpopulations.individuals;
 		fixedCount = sim.substitutions.size();
+		
+		// find the average heterozygosity across all individuals
 		total = 0.0;
-		
 		for (ind in inds)
-		{
-			// Calculate the nucleotide heterozygosity of this individual
-			muts1 = ind.genome1.mutations;
-			muts2 = ind.genome2.mutations;
-			
-			// Count the shared mutations
-			shared_count = sum(match(muts1, muts2) >= 0);
-			// All remaining mutations are unshared (i.e. heterozygous)
-			unshared_count = muts1.size() + muts2.size() - 2 * shared_count;
-			// pi is the mean heterozygosity across the chromosome
-			pi_ind = unshared_count / (sim.chromosome.lastPosition + 1);
-			total = total + pi_ind;
-		}
-		
+			total = total + calcPairHeterozygosity(ind.genome1, ind.genome2);
 		pi = total / inds.size();
+		
 		catn(sim.generation + " " + fixedCount + " " + pi);
 	}
-
 }
 
 50000 late() {
