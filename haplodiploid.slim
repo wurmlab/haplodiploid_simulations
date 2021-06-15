@@ -1,11 +1,11 @@
 initialize() {
 	initializeSLiMModelType("nonWF");
-	defineConstant("K", 1000);
-	
-	initializeMutationRate(1e-7);
+	defineConstant("K", 2000);
+
+	initializeMutationRate(1e-8);
 	initializeMutationType("m1", 0.0, "f", 0.003);
 	initializeGenomicElementType("g1", m1, 1.0);
-	initializeGenomicElement(g1, 0, 99999);
+	initializeGenomicElement(g1, 0, 999999);
 	initializeRecombinationRate(1e-6);
 	initializeSex("A");
 }
@@ -18,18 +18,18 @@ reproduction(p1) {
 	females = inds[is_female];
 	males = inds[is_male];
 	chr = sim.chromosome;
-	
+
 	fit = subpop.cachedFitness(NULL);
 	femWeights = fit[is_female];
 	maleWeights = fit[is_male];
-	
+
 	// Mothers of haploid males
 	sampledFemalesHap = sample(females, asInteger(K/2), replace = T, weights = femWeights);
-	
-	// Parents of diploid females  
+
+	// Parents of diploid females
 	sampledFemalesDip = sample(females, asInteger(K/2), replace = T, weights = femWeights);
 	sampledMales = sample(males, asInteger(K/2), T, weights = maleWeights);
-	
+
 	// Create haploid males from unfertilised eggs:
 	//  one genome results from the recombination of the mother's diploid genomes
 	//  the second genome is kept empty
@@ -52,7 +52,7 @@ reproduction(p1) {
 				breaks2 = NULL,
 				sex = "M");
 	}
-	
+
 	// Create diploid females from fertilised eggs:
 	//  one genome results from the recombination of the mother's diploid genomes
 	//  the second genome is the father's haploid genome
@@ -77,13 +77,13 @@ reproduction(p1) {
 				breaks2 = NULL,
 				sex = "F");
 	}
-	
+
 	self.active = 0;
 }
 
 1 {
 	sim.addSubpop("p1", K);
-	
+
 	// print a header for the output table we will generate
 	catn("Generation, FixedMutations, NucleotideHeterozygosity");
 }
@@ -102,7 +102,7 @@ late()
 	genomeCount = sum(subpops.individualCount) + sum(subpops.firstMaleIndex);
 	mutCounts = sim.mutationCounts(NULL);
 	fixedMuts = sim.mutations[mutCounts == genomeCount];
-	
+
 	if (fixedMuts.size() > 0)
 	{
 		// this code emits a warning about fitness values; it is OK, because
@@ -120,11 +120,11 @@ fitness(m1) {
 		return relFitness;
 	if (individual.sex == "F")
 		return relFitness;
-	
+
 	// heterozygous males (i.e. haploids that have one copy of the mutation)
-	// get a different fitness value, using an X-dominance coefficient; here
-	// we use 1.0 as the X-dominance coefficient, as if the haploid were
-	// homozygous diploid for the mutation, but this can be changed
+	// get a different fitness value, using a haploid dosage coefficient;
+	// here we use 1.0 as the haploid dosage coefficient, as if haploid males
+	// were homozygous diploid for the mutation, but this can be changed
 	return 1.0 + 1.0 * mut.selectionCoeff;
 }
 
@@ -133,13 +133,13 @@ fitness(m1) {
 	{
 		inds = sim.subpopulations.individuals;
 		fixedCount = sim.substitutions.size();
-		
+
 		// find the average heterozygosity across all individuals
 		total = 0.0;
 		for (ind in inds)
 			total = total + calcPairHeterozygosity(ind.genome1, ind.genome2);
 		pi = total / inds.size();
-		
+
 		catn(sim.generation + " " + fixedCount + " " + pi);
 	}
 }
