@@ -1,6 +1,6 @@
-# Simulations of populations with advantageous mutations of varying dominance
+# Simulations of populations with neutral mutations
 
-We created a framework to simulate haplodiploid populations in the SLiM simulation framework. Here, we run simulations of populations with advantageous mutations under a range of dominance coefficients. The scripts used are the `slim_scripts` directory.  
+We created a framework to simulate haplodiploid populations in the SLiM simulation framework. Here, we run simulations of populations with neutral mutations. The scripts used are the `slim_scripts` directory.  
 
 ## Parse simulation results
 
@@ -8,8 +8,11 @@ We parsed the simulation results:
 
 ```sh
 
+mkdir -p results/outputs
+# manually move SLiM outputs to there
+
 ls results/outputs | cut -f 1 -d "-" \
-| parallel "grep -A5000 -m1 -e 'Generation, FixedMutations, NucleotideHeterozygosity' \
+| parallel "grep -A50000 -m1 -e 'Generation, FixedMutations, NucleotideHeterozygosity' \
   results/outputs/{}*/* | grep -v 'Generation' \
   | grep -v '^--'| cut -f 4- -d '/' > results/{}_tmp"
 
@@ -18,7 +21,7 @@ ls results/outputs | cut -f 1 -d "-" \
 ```r
 
 parse_df <- function(path) {
-  df <- read.table(file.path("results", path))
+  df <- read.table(file.path("results",path))
   id <- as.character(df$V1)
   split_id <- strsplit(id, split = "_")
 
@@ -54,17 +57,14 @@ parsed_df <- lapply(to_parse, function(path) parse_df(path))
 parsed_df <- do.call(rbind, parsed_df)
 
 parsed_df$selection <- as.character(parsed_df$selection)
-parsed_df$selection[parsed_df$selection == "s001"] <- "0.001"
-
-parsed_df$dominance  <- as.character(parsed_df$dominance)
-
-parsed_df$dominance[parsed_df$dominance == "h25"]  <- "0.25"
-parsed_df$dominance[parsed_df$dominance == "h50"]  <- "0.50"
-parsed_df$dominance[parsed_df$dominance == "h75"]  <- "0.75"
-parsed_df$dominance[parsed_df$dominance == "h100"]  <- "1.00"
+parsed_df$selection[parsed_df$selection == "s000"]   <- "0"
+parsed_df$selection[parsed_df$selection == "s-0005"] <- "-0.0005"
+parsed_df$selection[parsed_df$selection == "s-001"]  <- "-0.001"
+parsed_df$selection[parsed_df$selection == "s-003"]  <- "-0.003"
+parsed_df$selection[parsed_df$selection == "s-010"]  <- "-0.010"
 
 write.csv(parsed_df,
-          file="results/dominance_mutations_s001.csv",
+          file="results/neutral_mutations_h0.csv",
           row.names=FALSE, quote=FALSE)
 
 ```

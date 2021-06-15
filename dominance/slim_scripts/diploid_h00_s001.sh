@@ -1,8 +1,8 @@
 #!/bin/bash
 #$ -cwd
 #$ -j y
-#$ -N diploid_h0_s001
-#$ -o diploid_h0_s001-output/
+#$ -N diploid_h00_s001
+#$ -o diploid_h00_s001-output/
 #$ -m s
 #$ -pe smp 1
 #$ -l h_vmem=500M
@@ -12,4 +12,4 @@
 
 module load slim
 
-slim slim_scripts/diploid_h0_s001.slim
+slim slim_scripts/diploid_h00_s001.slim

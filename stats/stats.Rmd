@@ -1,7 +1,7 @@
 ---
 title: "Comparing haplodiploid and diploid simulations"
-author: "Dr Roddy Pracana, Queen Mary University of London"
-date: "19/05/2021"
+author: "Roddy Pracana"
+date: "07/06/2021"
 output: html_document
 ---
 
@@ -37,9 +37,10 @@ pretty_numbers <- function(x) {
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
-library(broom)
+
 library(tidyverse)
 library(patchwork)
+library(broom)
 
 ```
 
@@ -47,51 +48,20 @@ library(patchwork)
 
 We have built a simulation environment for haplodiploid simulations. As a proof-of-concept, we compare simple simulations of haplodiploid populations with simulations of didplodiploid populations.
 
-In each simulation, we create a population with 500 males and 500 females. Each individual has a genome with 100,000 loci. At each generation, individuals produces gametes (with a mutation rate of $1\times10^{-7}$ and, for all but haploid males, a recombination rate of $1\times10^{-6}$). The alleles produced by mutation have a given selective coefficient, which we change depending on the simulation condition. The inheritance of the genome onto the next generation is based on the sum of the selective coefficients of the alleles carried by each individual. In the haplodiploid simulation, males are haploid, produced by the non-fertilised gametes of diploid females. In diploid simulations, both males and females are diploid, and there is no sex chromosome.
+In each simulation, we create a population with 1000 males and 1000 females. Each individual has a genome with 1,000,000 loci. At each generation, each individual produces gametes (with a mutation rate of $1\times10^{-8}$ and recombination of $\times10^{-5}$) and mates with another individual of the opposite sex. The alleles produced by mutation have a given selective coefficient, which we change depending on the simulation condition. The inheritance of the genome onto the next generation is based on the sum of the selective coefficients of the alleles carried by each individual. In the haplodiploid simulation, males are haploid, produced by the non-fertilised gametes of diploid females. In diploid simulations, both males and females are diploid, and there is no sex chromosome.
 
 We ran the simulations where we varied the selection coefficient of new mutations. We ran the following simulations:
 
 * Neutral mutations only (S = 0%)
-* Recessive advantageous mutations
-* Recessive deleterious mutations
-* Advantageous mutations ranging from fully recessive to fully dominant.
+* Fully recessive advantageous mutations with a range of selection coefficients (S > 0%)
+* Fully recessive deleterious mutations with a range of selection coefficients (S < 0%)
+* Advantageous mutations with a range of dominance coefficients (h)
 
-Each simulation was ran for 50,000 generations. For each simulation, we recorded the number of novel alleles that have become fixed (cumulatively) every 100th generation. We ran 200 simulations per treatment.
+Each simulation was ran for 50,000 generations. For each simulation, we recorded the number of novel alleles that have become fixed (cumulatively) every 100th generation.
 
 ```{r input_data}
 
 library(tidyverse)
-# read_input <- function(s, simulation) {
-#   
-#  path <- paste0("input/s", s, "_summary.csv")
-#  
-#  df <- read.csv(path)
-#  
-#  df <- filter(df, sim_id != "total")
-#  
-#  df$selection <- simulation
-# 
-#  df %>%
-#    select(-difference, -difference_per) %>%
-#    pivot_longer(c(-sim_id, -selection), names_to = "ploidy", values_to = "number_fixed") %>%
-#    mutate(ploidy = recode_factor(ploidy, dp = "diploid", hp = "haplodiploid")) %>%
-#    return()
-# }
-
-# Neutral simulations
-# neutral <- read_input("000", "0")
-# 
-# # Advantageous simulations
-# advantageous <- rbind(read_input("0.001", "0.001"),
-#                       read_input("0.003", "0.003"),
-#                       read_input("0.010", "0.010")
-# )
-# 
-# # Deleterious simulations
-# deleterious <- rbind(read_input("-001", "-0.001"),
-#                       read_input("-003", "-0.003"),
-#                       read_input("-010", "-0.010")
-# )
 
 read_path <- function(path) {
   read.csv(path) %>%
@@ -105,12 +75,14 @@ read_path <- function(path) {
     mutate(dominance = as.numeric(gsub("h", "", dominance))) %>%
     mutate(dominance = paste0("h = ",dominance*100, "%")) %>%
     mutate(dominance = as.factor(dominance)) %>%
+    mutate(simulation_group = factor(simulation_group)) %>%
+    mutate(simulation_group = fct_shuffle(simulation_group)) %>%
     return()
 }
 
-neutral <- read_path("input/neutral_mutations_h0.csv")
+neutral      <- read_path("input/neutral_mutations_h0.csv")
 advantageous <- read_path("input/advantageous_mutations_h0.csv")
-deleterious <- read_path("input/deleterious_mutations_h0.csv")
+deleterious  <- read_path("input/deleterious_mutations_h0.csv")
 
 ```
 
@@ -123,27 +95,72 @@ line_plot_selection <- function(df) {
                          "Haplodiploid"="haplodiploid",
                          "Diploid"="diploid")) %>%
     ggplot(aes(colour = Ploidy, x = generation, y = number_fixed, group = simulation_group)) +
-    geom_line(alpha = 0.5) +
+    geom_line(alpha = 0.25) +
     facet_grid(cols = vars(selection)) +
     xlab("Generation") +
     ylab("Number of fixed mutations") +
     theme_bw()  +
-    theme(panel.spacing = unit(1.4, "lines")) + scale_x_continuous(breaks=c(10000, 30000, 50000))
+    theme(panel.spacing = unit(1.4, "lines")) +
+    scale_x_continuous(breaks=c(0, 20000, 40000))
 }
 
-line_plot_domminance <- function(df) {
+line_plot_dominance <- function(df) {
   filter(df, simulation_id %in% 1:20) %>%
   mutate(Ploidy = fct_recode(ploidy,
                          "Haplodiploid"="haplodiploid",
                          "Diploid"="diploid")) %>%
   ggplot(aes(colour = Ploidy, x = generation, y = number_fixed, group = simulation_group)) +
-    geom_line(alpha = 0.5) +
+    geom_line(alpha = 0.25) +
     facet_grid(cols = vars(dominance)) +
     xlab("Generation") +
     ylab("Number of fixed mutations") +
     theme_bw() +
-    theme(panel.spacing = unit(1.4, "lines")) + scale_x_continuous(breaks=c(10000, 30000, 50000))
+    theme(panel.spacing = unit(1.4, "lines")) + scale_x_continuous(breaks=c(0, 20000, 40000))
 }
+
+line_plot_selection_mean_sd <- function(df) {
+  df %>%
+  mutate(Ploidy = fct_recode(ploidy,
+                         "Haplodiploid"="haplodiploid",
+                         "Diploid"="diploid")) %>%
+    group_by(selection, Ploidy, generation) %>%
+    summarise(mean = mean(number_fixed),
+              sd   = sd(number_fixed)) %>%
+    ggplot(aes(x = generation, group = Ploidy)) +
+      geom_line(aes(y = mean, colour = Ploidy)) +
+      geom_ribbon(aes(y = mean, ymin = mean - sd, ymax = mean + sd, fill = Ploidy),
+                  alpha = 0.25) +
+      facet_grid(cols = vars(selection)) +
+      xlab("Generation") +
+      ylab("Number of fixed mutations") +
+      theme_bw()  +
+      theme(panel.spacing = unit(1.4, "lines")) +
+      scale_x_continuous(breaks=c(0, 20000, 40000))
+}
+
+
+```
+
+
+```{r burnin_function}
+final_generation  <- 50000
+first_generation  <- 10000
+generation_length <- final_generation - first_generation
+
+remove_burnin <- function(df) {
+  df %>%
+    select(-simulation_run, -nucleotide_diversity) %>%
+    pivot_wider(names_from = generation, values_from = number_fixed) %>%
+    mutate(across(where(is.numeric) & !simulation_id,
+                  ~ .x - `10000`)) %>%
+    pivot_longer(!ploidy:simulation_id, names_to = "generation", values_to = "number_fixed") %>%
+    mutate(number_fixed = as.numeric(number_fixed)) %>%
+    mutate(generation = as.numeric(generation)) %>%
+    filter(generation >= first_generation) %>%
+    mutate(generation = generation - first_generation) %>%
+    return()
+}
+
 
 ```
 
@@ -151,9 +168,15 @@ line_plot_domminance <- function(df) {
 
 For the neutral simulation, we expect the haplodiploid and diploid simulations to have the same fixation rate. Below, each line is a single simulation. The rate of fixation is the slope of those lines, or, in other words, the average number of fixed alleles per generation.
 
+```{r}
+
+neutral_burnin <- remove_burnin(neutral)
+
+```
+
 ```{r plot_fixation_rates_neutral}
 
-neutral_plot <- line_plot_selection(neutral)
+neutral_plot <- line_plot_selection(neutral_burnin)
 
 neutral_plot
 
@@ -163,19 +186,11 @@ To measure the fixation rate, we can look at the average number of fixed alleles
 
 ```{r}
 
-final_generation  <- 50000
-first_generation  <- 10000
-generation_length <- final_generation - first_generation
-
-filter(neutral, generation %in% c(first_generation, final_generation)) %>%
-  select(-simulation_group, -simulation_run, -nucleotide_diversity) %>%
-  pivot_wider(names_from = generation, values_from = number_fixed) %>%
-  mutate(number_fixed = `50000` - `10000`) %>%
-  select(-`50000`, -`10000`) -> neutral_final
+filter(neutral_burnin, generation == final_generation - first_generation) -> neutral_final
 
 neutral_final %>%
   pivot_wider(names_from = ploidy, values_from = number_fixed) ->
-  final_neutral_for_t_test
+  final_neutral_for_wilcox_test
 
 neutral_final %>%
   group_by(selection, ploidy) %>%
@@ -190,7 +205,7 @@ ggplot(neutral_final) +
 
 ```
 
-An important point, is the the fixation rate of neutral mutations is the mutation rate. For diploids, the fixation probability of a new mutation is $1/(2N)$ (as it is present in that proportion when it appears) and the number of new mutations per generation is $2N\mu$, so that the fixation rate (fixation probability $\times$ mutation rate per generation, $1/(2N) \times 2N\mu$) is simply $\mu$. For haplodiploids, the same is true ($1/(1.5N) \times 1.5N\mu$). In our simulations, we have a mutation rate of $1\times10^{-7}$ and a genome with $100,000$ loci, giving us an expectation of 0.01 mutations per generation, or a total of 400 fixed mutations between generation 10,000 and 50,000 (the first 10,000 are excluded as a burn-in).
+An important point, is the the fixation rate of neutral mutations is the mutation rate. For diploids, the fixation probability of a new mutation is $1/(2N)$ (as it is present in that proportion when it appears) and the number of new mutations per generation is $2N\mu$, so that the fixation rate (fixation probability $\times$ mutation rate per generation, $1/(2N) \times 2N\mu$) is simply $\mu$. For haplodiploids, the same is true ($1/(1.5N) \times 1.5N\mu$). In our simulations, we have a mutation rate of $1\times10^{-7}$ and a genome with $100,000$ loci, giving us an expectation of 0.01 mutations per generation, or a total of 500 fixed mutations by generation 50,000.
 
 As expected, the average number of fixed alleles per generation is approximately 0.01 for both ploidy types.
 
@@ -207,38 +222,62 @@ as.data.frame(out_df)
 
 ```
 
-There was a significant difference of between the two ploidy types.
+
+We then test if the values are normally distributes:
 
 ```{r}
 
-t.test(final_neutral_for_t_test$diploid, final_neutral_for_t_test$haplodiploid)
+
+shapiro.test(final_neutral_for_wilcox_test$diploid)
+shapiro.test(final_neutral_for_wilcox_test$haplodiploid)
+
+
+```
+
+However, there was a significant difference of just under 2% between the two ploidy types.
+
+```{r}
+
+wilcox.test(final_neutral_for_wilcox_test$diploid, final_neutral_for_wilcox_test$haplodiploid)
+
+final_neutral_for_wilcox_test %>%
+  nest(-selection) %>%
+  mutate(model = map(data, ~ wilcox.test(.$diploid, .$haplodiploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) -> wilcox_test_out
+
+neutral_merged <- merge(out_df, wilcox_test_out)
 
 ```
 
 ## Simulations with advantageous mutations
 
-For recessive mutations (h<0.5), for the simulation where all mutations were advantageous, we expect the haplodiploid populations to fix alleles quicker, where the males (which are haploid) are under selection as soon as the mutation appears, whereas the mutation needs to be at high enough frequency to be in homozygous individuals before it is under selection. The most highly advantageous mutations have the strongest effect. 
+For the simulation where all mutations were advantageous, we expect the haplodiploid populations to fix alleles quicker, where the males (which are haploid) are under selection as soon as the mutation appears, whereas the mutation needs to be at high enough frequency to be in homozygous individuals before it is under selection. This is obvious in the simulations with the most highly advantageous mutations (S = +10%). 
+
+
+```{r}
+
+advantageous_burnin <- remove_burnin(advantageous)
+
+```
 
 ```{r plot_fixation_rates_advantageous, fig.width = 10, fig.height = 4}
 
-advantageous_plot <- line_plot_selection(advantageous)
+advantageous_plot <- line_plot_selection(advantageous_burnin)
 advantageous_plot
 
 ```
 
-Again, to measure the fixation rate, we can look at the average number of fixed alleles at the end of the simulations (the first 10,000 generations are excluded as a burn-in).
+Again, to measure the fixation rate, we can look at the average number of fixed alleles at the end of the simulations.
 
 ```{r, fig.width = 8, fig.heigh = 4}
 
-filter(advantageous, generation %in% c(first_generation, final_generation)) %>%
-  select(-simulation_group, -simulation_run, -nucleotide_diversity) %>%
-  pivot_wider(names_from = generation, values_from = number_fixed) %>%
-  mutate(number_fixed = `50000` - `10000`) %>%
-  select(-`50000`, -`10000`) -> advantageous_final
+filter(advantageous_burnin, generation == final_generation - first_generation) -> advantageous_final
 
 advantageous_final %>%
   pivot_wider(names_from = ploidy, values_from = number_fixed) ->
-  advantageous_for_t_test
+  advantageous_for_wilcox_test
 
 advantageous_final %>%
   group_by(selection, ploidy) %>%
@@ -273,41 +312,65 @@ All comparisons are statistically significant:
 
 ```{r}
 
-advantageous_for_t_test %>%
+
+shapiro.test(final_neutral_for_wilcox_test$diploid)
+shapiro.test(final_neutral_for_wilcox_test$haplodiploid)
+
+
+advantageous_for_wilcox_test %>%
   nest(-selection) %>%
-  mutate(model = map(data, ~ t.test(.$diploid, .$haplodiploid)),
+  mutate(model = map(data, ~ shapiro.test(.$haplodiploid)),
          results = map(model, tidy)) %>%
   unnest(results) %>%
-  select(-data, -model) -> t_test_out
+  select(-data, -model) 
 
-as.data.frame(t_test_out)
+advantageous_for_wilcox_test %>%
+  nest(-selection) %>%
+  mutate(model = map(data, ~ shapiro.test(.$diploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) 
+
+
+advantageous_for_wilcox_test %>%
+  nest(-selection) %>%
+  mutate(model = map(data, ~ wilcox.test(.$diploid, .$haplodiploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) -> wilcox_test_out
+
+as.data.frame(wilcox_test_out)
+
+advantageous_merged <- merge(out_df, wilcox_test_out)
 
 ```
 
 ## Simulations with deleterious mutations
 
-For the deleterious mutations, we expect that the fixation rate will be lower than that of neutral or advantageous mutations. Interestingly, none of of the highly deleterious mutations was fixed in the population.
+For the deleterious mutations, we expect that the fixation rate will be lower than that of neutral or advantageous mutations. Interestingly, none of of the highly deleterious mutations (S=-10%) was fixed in the population.
+
+```{r}
+
+deleterious_burnin <- remove_burnin(deleterious)
+
+```
 
 ```{r plot_fixation_rates_deleterious, fig.width = 10, fig.height = 4, eval = TRUE}
 
-deleterious_plot <- line_plot_selection(deleterious)
+deleterious_plot <- line_plot_selection(deleterious_burnin)
 deleterious_plot
 
 ```
 
-We can look at the fixation rate for eachselection coefficient.
+We can look at the fixation rate of the other two mutation types.
 
 ```{r, fig.width = 5.5, fig.heigh = 4}
 
-filter(deleterious, generation %in% c(first_generation, final_generation)) %>%
-  select(-simulation_group, -simulation_run, -nucleotide_diversity) %>%
-  pivot_wider(names_from = generation, values_from = number_fixed) %>%
-  mutate(number_fixed = `50000` - `10000`) %>%
-  select(-`50000`, -`10000`) -> deleterious_final
+filter(deleterious_burnin, generation == final_generation - first_generation) -> deleterious_final
 
 deleterious_final %>%
   pivot_wider(names_from = ploidy, values_from = number_fixed) ->
-  deleterious_for_t_test
+  deleterious_for_wilcox_test
 
 deleterious_final %>%
   group_by(selection, ploidy) %>%
@@ -322,7 +385,7 @@ ggplot(deleterious_final) +
 
 ```
 
-The difference between haplodiploid and diploid observed for midly deleterious mutations is quite large.
+The difference between haplodiploid and diploid observed for midly deleterious mutations is very large.
 
 ```{r}
 
@@ -339,66 +402,79 @@ as.data.frame(out_df)
 
 ```
 
+However, the difference observed for the weakly deleterious mutations is not significant.
+
 ```{r}
 
-
-deleterious_for_t_test %>%
+deleterious_for_wilcox_test %>%
+  filter(selection != "s = -1%") %>%
   nest(-selection) %>%
-  mutate(model = map(data, ~ t.test(.$diploid, .$haplodiploid)),
+  mutate(model = map(data, ~ shapiro.test(.$haplodiploid)),
          results = map(model, tidy)) %>%
   unnest(results) %>%
-  select(-data, -model) -> t_test_out
+  select(-data, -model) 
 
-as.data.frame(t_test_out)
+deleterious_for_wilcox_test %>%
+  filter(selection != "s = -1%") %>%
+  nest(-selection) %>%
+  mutate(model = map(data, ~ shapiro.test(.$diploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) 
 
+deleterious_for_wilcox_test %>%
+  nest(-selection) %>%
+  mutate(model = map(data, ~ wilcox.test(.$diploid, .$haplodiploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) -> wilcox_test_out
+
+deleterious_merged <- merge(out_df, wilcox_test_out)
 
 ```
 
 ## Simulation with varying levels of dominance coefficient
 
-The effect of selection depends on the dominance coefficient h. The difference between haplodiploids and diploid will be highest for fully recessive alleles and absent for fully dominant alleles. However, the number of novel mutations entering the population at each generation is fixed at 1/3 lower in haplodiploids relative to diploids:
-
-* For recessive mutations (h < 0.5), the effect haplodiploidy on selection is bigger than the effect of the number of novel mutations, so haplodiploids win.
-* For intermediate dominance (h = 0.5), the two effects cancel each other out, so there is no difference between haplodiploids and diploids
-* For dominant mutations (h>0.5), the effect haplodiploidy on selection is smaller than a third, i.e., smaller than the effect of the number of novel mutations. Therefore, diploids are better at fixing dominant mutations than haplodiploids. 
-
-We simulated advantageous mutations (s=0.1%) for a range of selection coefficients. The expected pattern is clearly visible:
+For this, we ran simulation with the following parameters:
+* Larger genome of 1e6 loci
+* Smaller mutation rate of 1e-8
+* Larger population of 2000
 
 ```{r}
 
-dominant <- read_path("input/dominance_mutations_s001.csv")
-
-dominant_h0 <- filter(advantageous, selection == "s = 0.1%")
-dominant_h0$dominance <- as.factor(dominant_h0$dominance)
-
-rbind(dominant, dominant_h0) %>%
+read_path("input/dominance_mutations_s001.csv") %>%
   mutate(dominance = fct_relevel(dominance, "h = 0%", "h = 25%", "h = 50%", "h = 75%", "h = 100%")) ->
   dominant
 
 
 final_generation  <- 50000
-first_generation  <- 0
+first_generation  <- 10000
 generation_length <- final_generation - first_generation
 
 ```
 
-```{r plot_fixation_rates_deleterious, fig.width = 10, fig.height = 4, eval = TRUE}
+```{r}
 
-dominance_plot <- line_plot_domminance(dominant)
+dominant_burnin <- remove_burnin(dominant)
+
+```
+
+```{r plot_fixation_rates_dominance, fig.width = 10, fig.height = 4, eval = TRUE}
+
+dominance_plot <- line_plot_dominance(dominant_burnin)
 print(dominance_plot)
 
 ```
 
-There is no effect for mutations of intermediate dominance. Otherwise, haploidploid simulations are quicker at fixing recessive mutations and slower at fixing deleterious mutations. 
 
 ```{r, fig.width = 5.5, fig.heigh = 4}
 
-filter(dominant, generation %in% final_generation) %>%
-  select(-simulation_group, -simulation_run, -nucleotide_diversity) -> dominant_final
+filter(dominant_burnin, generation == final_generation - first_generation) -> dominant_final
 
 dominant_final %>%
+  select(-simulation_group) %>%
   pivot_wider(names_from = ploidy, values_from = number_fixed) ->
-  dominant_for_t_test
+  dominant_for_wilcox_test
 
 dominant_final %>%
   group_by(dominance, selection, ploidy) %>%
@@ -422,20 +498,24 @@ dominant_mean %>%
          rate_difference = haplodiploid_rate - diploid_rate,
          difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
 
-as.data.frame(out_df)
+out_df %>%
+  select(dominance, haplodiploid_rate, diploid_rate, difference_per) %>%
+  as.data.frame()
 
 ```
 
 ```{r}
 
-dominant_for_t_test %>%
-  nest(-selection, -dominance) %>%
-  mutate(model = map(data, ~ t.test(.$diploid, .$haplodiploid)),
+dominant_for_wilcox_test %>%
+  nest(-selection, -dominance, simulation_id, generation, diploid, haplodiploid) %>%
+  mutate(model = map(data, ~ wilcox.test(.$diploid, .$haplodiploid)),
          results = map(model, tidy)) %>%
   unnest(results) %>%
-  select(-data, -model) -> t_test_dominance
+  select(-data, -model) -> wilcox_test_dominance
 
-as.data.frame(t_test_dominance)
+as.data.frame(wilcox_test_dominance)
+
+dominance_merged <- merge(out_df, wilcox_test_dominance)
 
 ```
 
@@ -447,8 +527,8 @@ require(gridExtra)
 
 
 pdf("results/figure1_A_B.pdf", width = 9, height = 3)
-grid.arrange(neutral_plot + theme(legend.position = "none", plot.margin = unit(c(0.4,6,0.5,0.5), "lines")),
-             advantageous_plot + theme(legend.position = "none", plot.margin = unit(c(0.5,1.5,0.5,0.5), "lines")),
+grid.arrange(neutral_plot + theme(legend.position = "none", plot.margin = unit(c(0.5,7.4,0.5,0.5), "lines")),
+             advantageous_plot + theme(legend.position = "none", plot.margin = unit(c(0.5,0.2,0.5,0.5), "lines")),
              ncol=2, widths = c(2,3+0.2))
 dev.off()
 
@@ -462,3 +542,15 @@ dev.off()
 
 
 ```
+
+## Make table for Supplementary
+
+```{r}
+
+rbind(cbind(dominance = "h = 0%",
+           rbind(neutral_merged, advantageous_merged, deleterious_merged)),
+      dominance_merged) %>%
+  write.csv("results/supp_table.csv", quote = FALSE, row.names = FALSE)
+
+```
+

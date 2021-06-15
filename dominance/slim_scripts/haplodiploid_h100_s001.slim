@@ -1,12 +1,12 @@
 initialize() {
   initializeSLiMModelType("nonWF");
   initializeSLiMOptions(keepPedigrees= T);
-  defineConstant("K", 1000);
-  initializeMutationRate(1e-7);
-  initializeMutationType("m1", 1.0, "f", 0.001);
+  defineConstant("K", 2000);
+  initializeMutationRate(1e-8);
+  initializeMutationType("m1", 1.00, "f", 0.001);
   m1.convertToSubstitution = T;
   initializeGenomicElementType("g1", m1, 1.0);
-  initializeGenomicElement(g1, 0, 99999);
+  initializeGenomicElement(g1, 0, 999999);
   initializeRecombinationRate(1e-6);
   initializeSex("A");
 }
@@ -84,7 +84,7 @@ fitness(m1) {
 }
 
 
-10000: late() {
+1: late() {
   if (sim.generation % 100 == 0)
   {
     fixedVector = sim.substitutions.size();

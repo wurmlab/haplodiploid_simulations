@@ -1,19 +1,19 @@
 initialize() {
-	initializeMutationRate(1e-7);
-	defineConstant("K", 1000);
+	initializeMutationRate(1e-8);
+	defineConstant("K", 2000);
 	initializeMutationType("m1", 0.0, "f", 0.001);
 	m1.convertToSubstitution = T;
 	initializeGenomicElementType("g1", m1, 1.0);
-	initializeGenomicElement(g1, 0, 99999);
+	initializeGenomicElement(g1, 0, 999999);
 	initializeRecombinationRate(1e-6);
 }
 
 1 {
-	sim.addSubpop("p1", 1000);
+	sim.addSubpop("p1", K);
 	print("Generation, FixedMutations, NucleotideHeterozygosity");
 }
 
-10000: late() {
+1: late() {
 	if (sim.generation % 100 == 0)
 	{
 		fixedVector = sim.substitutions.size();

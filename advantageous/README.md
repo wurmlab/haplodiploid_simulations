@@ -1,6 +1,6 @@
 # Simulations of populations with advantageous mutations
 
-We created a framework to simulate haplodiploid populations in the SLiM simulation framework. Here, we run simulations of populations with recessive advantageous mutations with a range of selective coefficients. The scripts used are the `slim_scripts` directory.  
+We created a framework to simulate haplodiploid populations in the SLiM simulation framework. Here, we run simulations of populations with recessive advantageous mutations under a range of selective coefficients. The scripts used are the `slim_scripts` directory.  
 
 ## Parse simulation results
 
@@ -8,30 +8,10 @@ We parsed the simulation results:
 
 ```sh
 
-grep -A5000 -m1 -e "Generation, FixedMutations, NucleotideHeterozygosity" \
-  results/outputs/diploid_h0_s001*/* | grep -v "Generation" \
-  | grep -v "^--"| cut -f 4- -d "/" > results/diploid_h0_s001_tmp
-
-grep -A5000 -m1 -e "Generation, FixedMutations, NucleotideHeterozygosity" \
-  results/outputs/diploid_h0_s003*/* | grep -v "Generation" \
-  | grep -v "^--"| cut -f 4- -d "/" > results/diploid_h0_s003_tmp
-
-grep -A5000 -m1 -e "Generation, FixedMutations, NucleotideHeterozygosity" \
-  results/outputs/diploid_h0_s010*/* | grep -v "Generation" \
-  | grep -v "^--"| cut -f 4- -d "/" > results/diploid_h0_s010_tmp
-
-
-grep -A5000 -m1 -e "Generation, FixedMutations, NucleotideHeterozygosity" \
-  results/outputs/haplodiploid_h0_s001*/* | grep -v "Generation" \
-  | grep -v "^--"| cut -f 4- -d "/" > results/haplodiploid_h0_s001_tmp
-
-grep -A5000 -m1 -e "Generation, FixedMutations, NucleotideHeterozygosity" \
-  results/outputs/haplodiploid_h0_s003*/* | grep -v "Generation" \
-  | grep -v "^--"| cut -f 4- -d "/" > results/haplodiploid_h0_s003_tmp
-
-grep -A5000 -m1 -e "Generation, FixedMutations, NucleotideHeterozygosity" \
-  results/outputs/haplodiploid_h0_s010*/* | grep -v "Generation" \
-  | grep -v "^--"| cut -f 4- -d "/" > results/haplodiploid_h0_s010_tmp
+ls results/outputs | cut -f 1 -d "-" \
+| parallel "grep -A50000 -m1 -e 'Generation, FixedMutations, NucleotideHeterozygosity' \
+  results/outputs/{}*/* | grep -v 'Generation' \
+  | grep -v '^--'| cut -f 4- -d '/' > results/{}_tmp"
 
 ```
 
