@@ -115,13 +115,11 @@ late()
 }
 
 fitness(m1) {
-	// homozygotes and females use the standard fitness calculation
-	if (homozygous)
-		return relFitness;
+	// Females use the standard fitness calculation
 	if (individual.sex == "F")
 		return relFitness;
 
-	// heterozygous males (i.e. haploids that have one copy of the mutation)
+	// males (i.e. haploids that have one copy of the mutation)
 	// get a different fitness value, using a haploid dosage coefficient;
 	// here we use 1.0 as the haploid dosage coefficient, as if haploid males
 	// were homozygous diploid for the mutation, but this can be changed
