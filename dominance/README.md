@@ -58,6 +58,7 @@ parsed_df$selection[parsed_df$selection == "s001"] <- "0.001"
 
 parsed_df$dominance  <- as.character(parsed_df$dominance)
 
+parsed_df$dominance[parsed_df$dominance == "h00"]  <- "0.00"
 parsed_df$dominance[parsed_df$dominance == "h25"]  <- "0.25"
 parsed_df$dominance[parsed_df$dominance == "h50"]  <- "0.50"
 parsed_df$dominance[parsed_df$dominance == "h75"]  <- "0.75"
