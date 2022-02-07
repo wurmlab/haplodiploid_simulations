@@ -3,7 +3,7 @@ initialize() {
 	defineConstant("K", 2000);
 
 	initializeMutationRate(1e-8);
-  initializeMutationType("m1", 0.0, "f", -0.0005);
+  initializeMutationType("m1", 0.0, "f", -0.0003);
 	m1.convertToSubstitution = T;		// converts mutations that have become fixed into substitutions
 	m1.haploidDominanceCoeff = 1.0;	// haploid dosage coefficient
 	initializeGenomicElementType("g1", m1, 1.0);

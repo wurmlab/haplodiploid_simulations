@@ -10,6 +10,4 @@
 #$ -t 1-200
 #$ -tc 200
 
-module load slim
-
-slim slim_scripts/haplodiploid_h0_s-003.slim
+$HOME/2021-10-slim_dev/build/slim slim_scripts/haplodiploid_h0_s-003.slim
