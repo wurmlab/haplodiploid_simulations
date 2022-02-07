@@ -1,6 +1,6 @@
 # Simulations of populations with advantageous mutations of varying dominance
 
-We created a framework to simulate haplodiploid populations in the SLiM simulation framework. Here, we run simulations of populations with advantageous mutations under a range of dominance coefficients. The scripts used are the `slim_scripts` directory.  
+We created a framework to simulate haplodiploid populations in the SLiM simulation framework. Here, we run simulations of populations with advantageous mutations under a range of dominance coefficients. The scripts used are the [`slim_scripts`](slim_scripts/) directory, and the results of the simulation run in the [`results`](results/) directory.
 
 ## Parse simulation results
 
@@ -9,11 +9,13 @@ We parsed the simulation results:
 ```sh
 
 ls results/outputs | cut -f 1 -d "-" \
-| parallel "grep -A5000 -m1 -e 'Generation, FixedMutations, NucleotideHeterozygosity' \
+| parallel "grep -A50000 -m1 -e 'Generation, FixedMutations, NucleotideHeterozygosity' \
   results/outputs/{}*/* | grep -v 'Generation' \
   | grep -v '^--'| cut -f 4- -d '/' > results/{}_tmp"
 
 ```
+
+And combine them into a single data frame.
 
 ```r
 
