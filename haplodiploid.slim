@@ -3,7 +3,9 @@ initialize() {
 	defineConstant("K", 2000);
 
 	initializeMutationRate(1e-8);
-	initializeMutationType("m1", 0.0, "f", 0.003);
+  initializeMutationType("m1", 0.0, "f", 0.001);
+	m1.convertToSubstitution = T;		// converts mutations that have become fixed into substitutions
+	m1.haploidDominanceCoeff = 1.0;	// haploid dosage coefficient
 	initializeGenomicElementType("g1", m1, 1.0);
 	initializeGenomicElement(g1, 0, 999999);
 	initializeRecombinationRate(1e-6);
@@ -31,7 +33,7 @@ reproduction(p1) {
 	sampledMales = sample(males, asInteger(K/2), T, weights = maleWeights);
 
 	// Create haploid males from unfertilised eggs:
-	//  one genome results from the recombination of the mother's diploid genomes
+	//  one genome results from the recombination of the mother's diploid genome
 	//  the second genome is kept empty
 	for (sampledFemale in sampledFemalesHap) {
 		breaks = chr.drawBreakpoints(sampledFemale);
@@ -54,7 +56,7 @@ reproduction(p1) {
 	}
 
 	// Create diploid females from fertilised eggs:
-	//  one genome results from the recombination of the mother's diploid genomes
+	//  one genome results from the recombination of the mother's diploid genome
 	//  the second genome is the father's haploid genome
 	for (i in seqAlong(sampledFemalesDip)) {
 		sampledFemale = sampledFemalesDip[i];
@@ -88,42 +90,10 @@ reproduction(p1) {
 	catn("Generation, FixedMutations, NucleotideHeterozygosity");
 }
 
-early() {
-	inds = sim.subpopulations.individuals;
-	inds[inds.age > 0].fitnessScaling = 0.0;		// non-overlapping generations
-	inds[inds.age == 0].fitnessScaling = 1000.0; // avoid fitness-based mortality
-}
-
-late()
+survival()
 {
-	// find and remove fixed mutations manually, after mortality; necessary
-	// because mutations never fix from SLiM's perspective due to haploid males
-	subpops = sim.subpopulations;
-	genomeCount = sum(subpops.individualCount) + sum(subpops.firstMaleIndex);
-	mutCounts = sim.mutationCounts(NULL);
-	fixedMuts = sim.mutations[mutCounts == genomeCount];
-
-	if (fixedMuts.size() > 0)
-	{
-		// this code emits a warning about fitness values; it is OK, because
-		// fitness in this model is relative fitness, and removal of fixed
-		// mutations does not change relative fitness anyway
-		suppressWarnings(T);
-		subpops.individuals.genomes.removeMutations(fixedMuts, T);
-		suppressWarnings(F);
-	}
-}
-
-fitness(m1) {
-	// Females use the standard fitness calculation
-	if (individual.sex == "F")
-		return relFitness;
-
-	// males (i.e. haploids that have one copy of the mutation)
-	// get a different fitness value, using a haploid dosage coefficient;
-	// here we use 1.0 as the haploid dosage coefficient, as if haploid males
-	// were homozygous diploid for the mutation, but this can be changed
-	return 1.0 + 1.0 * mut.selectionCoeff;
+	// non-overlapping generations, avoid fitness-based mortality
+	return (individual.age == 0);
 }
 
 10000: late() {
@@ -134,8 +104,18 @@ fitness(m1) {
 
 		// find the average heterozygosity across all individuals
 		total = 0.0;
+		length = sim.chromosome.lastPosition + 1;
 		for (ind in inds)
-			total = total + calcPairHeterozygosity(ind.genome1, ind.genome2);
+		{
+			// calcPairHeterozygosity() doesn't like being called on haploids,
+			// since they're not "heterozygous" but rather have no zygosity;
+			// the access of the null second genome is illegal.  So, we consider
+			// males to be heterozygous for every mutation.
+			if (ind.sex == "M")
+				total = total + size(ind.genome1) / length;
+			else
+				total = total + calcPairHeterozygosity(ind.genome1, ind.genome2);
+		}
 		pi = total / inds.size();
 
 		catn(sim.generation + " " + fixedCount + " " + pi);

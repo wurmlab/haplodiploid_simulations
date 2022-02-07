@@ -1,47 +1,156 @@
 initialize() {
-	initializeMutationRate(1e-8);
+	initializeSLiMModelType("nonWF");
 	defineConstant("K", 2000);
+
+	initializeMutationRate(1e-8);
 	initializeMutationType("m1", 0.75, "f", 0.001);
-	m1.convertToSubstitution = T;
+	m1.convertToSubstitution = T;		// converts mutations that have become fixed into substitutions
+
 	initializeGenomicElementType("g1", m1, 1.0);
 	initializeGenomicElement(g1, 0, 999999);
 	initializeRecombinationRate(1e-6);
+	initializeSex("A");
+}
+
+reproduction(p1) {
+	// generate K offspring in subpop, in one "big bang"
+	inds = subpop.individuals;
+	is_female = (inds.sex == "F");
+	is_male = !is_female;
+	females = inds[is_female];
+	males = inds[is_male];
+	chr = sim.chromosome;
+
+	fit = subpop.cachedFitness(NULL);
+	FemWeights = fit[is_female];
+	MaleWeights = fit[is_male];
+
+	// Parents of diploid females
+	sampledFemalesF = sample(females, asInteger(K/2), T, weights = FemWeights);
+	sampledMalesF = sample(males, asInteger(K/2), T, weights = MaleWeights);
+
+	// Parents of diploid males
+	sampledFemalesM = sample(females, asInteger(K/2), T, weights = FemWeights);
+	sampledMalesM = sample(males, asInteger(K/2), T, weights = MaleWeights);
+
+	// Create diploid females from fertilised eggs
+	for (i in seqAlong(sampledFemalesF)) {
+		sampledFemale = sampledFemalesF[i];
+		sampledMale = sampledMalesF[i];
+		fbreaks = sim.chromosome.drawBreakpoints(sampledFemale);
+		mbreaks = sim.chromosome.drawBreakpoints(sampledMale);
+		if (rbinom(1, 1, 0.5))
+			if (rbinom(1, 1, 0.5))
+				subpop.addRecombinant(strand1 = sampledFemale.genome1,
+					strand2 = sampledFemale.genome2,
+					breaks1 = fbreaks,
+					strand3 = sampledMale.genome1,
+					strand4 = sampledMale.genome2,
+					breaks2 = mbreaks,
+					sex = "F");
+			else
+				subpop.addRecombinant(strand1 = sampledFemale.genome2,
+					strand2 = sampledFemale.genome1,
+					breaks1 = fbreaks,
+					strand3 = sampledMale.genome1,
+					strand4 = sampledMale.genome2,
+					breaks2 = mbreaks,
+					sex = "F");
+		else
+			if (rbinom(1, 1, 0.5))
+				subpop.addRecombinant(strand1 = sampledFemale.genome2,
+					strand2 = sampledFemale.genome1,
+					breaks1 = fbreaks,
+					strand3 = sampledMale.genome2,
+					strand4 = sampledMale.genome1,
+					breaks2 = mbreaks,
+					sex = "F");
+			else
+				subpop.addRecombinant(strand1 = sampledFemale.genome1,
+					strand2 = sampledFemale.genome2,
+					breaks1 = fbreaks,
+					strand3 = sampledMale.genome2,
+					strand4 = sampledMale.genome1,
+					breaks2 = mbreaks,
+					sex = "F");
+	}
+
+	// Create diploid males from fertilised eggs
+	for (i in seqAlong(sampledFemalesM)) {
+		sampledFemale = sampledFemalesM[i];
+		sampledMale = sampledMalesM[i];
+		fbreaks = sim.chromosome.drawBreakpoints(sampledFemale);
+		mbreaks = sim.chromosome.drawBreakpoints(sampledMale);
+		if (rbinom(1, 1, 0.5))
+			if (rbinom(1, 1, 0.5))
+				subpop.addRecombinant(strand1 = sampledFemale.genome1,
+					strand2 = sampledFemale.genome2,
+					breaks1 = fbreaks,
+					strand3 = sampledMale.genome1,
+					strand4 = sampledMale.genome2,
+					breaks2 = mbreaks,
+					sex = "M");
+			else
+				subpop.addRecombinant(strand1 = sampledFemale.genome2,
+					strand2 = sampledFemale.genome1,
+					breaks1 = fbreaks,
+					strand3 = sampledMale.genome1,
+					strand4 = sampledMale.genome2,
+					breaks2 = mbreaks,
+					sex = "M");
+		else
+			if (rbinom(1, 1, 0.5))
+				subpop.addRecombinant(strand1 = sampledFemale.genome2,
+					strand2 = sampledFemale.genome1,
+					breaks1 = fbreaks,
+					strand3 = sampledMale.genome2,
+					strand4 = sampledMale.genome1,
+					breaks2 = mbreaks,
+					sex = "M");
+			else
+				subpop.addRecombinant(strand1 = sampledFemale.genome1,
+					strand2 = sampledFemale.genome2,
+					breaks1 = fbreaks,
+					strand3 = sampledMale.genome2,
+					strand4 = sampledMale.genome1,
+					breaks2 = mbreaks,
+					sex = "M");
+	}
+	self.active = 0;
 }
 
 1 {
 	sim.addSubpop("p1", K);
+
+	// print a header for the output table we will generate
 	print("Generation, FixedMutations, NucleotideHeterozygosity");
 }
 
-1: late() {
+survival()
+{
+	// non-overlapping generations, avoid fitness-based mortality
+	return (individual.age == 0);
+}
+
+10000: late() {
 	if (sim.generation % 100 == 0)
 	{
-		fixedVector = sim.substitutions.size();
+		inds = sim.subpopulations.individuals;
+		fixedCount = sim.substitutions.size();
 
+		// find the average heterozygosity across all individuals
 		total = 0.0 ;
 
-		for (ind in p1.individuals) {
-	 	// Calculate the nucleotide heterozygosity of this individual
-			muts0 = ind.genomes[0].mutations;
-	 		muts1 = ind.genomes[1].mutations;
-
-		// Count the shared mutations
-			shared_count = sum(match(muts0, muts1) >= 0);
-
-		// All remaining mutations are unshared (i.e. heterozygous)
-		 	unshared_count = muts0.size() + muts1.size() - 2 * shared_count;
-
-		// pi is the mean heterozygosity across the chromosome
-		 	pi_ind = unshared_count / (sim.chromosome.lastPosition + 1);
-		 	total = total + pi_ind;
+		for (ind in inds)
+		{
+	 		total = total + calcPairHeterozygosity(ind.genome1, ind.genome2);
 		}
+		pi = total / inds.size();
 
-		pi = total / p1.individuals.size();
-
-		print(c(sim.generation, fixedVector, pi));
+		catn(sim.generation + " " + fixedCount + " " + pi);
 	}
 }
 
 50000 late() {
-sim.simulationFinished();
+	sim.simulationFinished();
 }

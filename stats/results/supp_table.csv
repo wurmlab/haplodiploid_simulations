@@ -1,14 +1,15 @@
 dominance,selection,haplodiploid,diploid,haplodiploid_rate,diploid_rate,rate_difference,difference_per,statistic,p.value,method,alternative
-h = 0%,s = 0%,396.98,393.8,0.0099245,0.009845,7.95000000000014e-05,1%,18222,0.124127168523678,Wilcoxon rank sum test with continuity correction,two.sided
-h = 0%,s = 0.1%,1172.91,878.66,0.02932275,0.0219665,0.00735625,33%,0,4.79320144963331e-67,Wilcoxon rank sum test with continuity correction,two.sided
-h = 0%,s = 0.3%,2432.51,1454.765,0.06081275,0.036369125,0.024443625,67%,0,4.79833138920603e-67,Wilcoxon rank sum test with continuity correction,two.sided
-h = 0%,s = 1%,4980.64,2387.205,0.124516,0.059680125,0.064835875,109%,0,4.80177688565504e-67,Wilcoxon rank sum test with continuity correction,two.sided
-h = 0%,s = -0.05%,146.79,164.2,0.00366975,0.004105,-0.00043525,-11%,33590,6.50714148116604e-32,Wilcoxon rank sum test with continuity correction,two.sided
-h = 0%,s = -0.1%,42.32,49.42,0.001058,0.0012355,-0.0001775,-14%,30654,2.89125627839966e-20,Wilcoxon rank sum test with continuity correction,two.sided
-h = 0%,s = -0.3%,0.065,0.06,1.625e-06,1.5e-06,1.25e-07,8%,19806.5,0.6848902686164,Wilcoxon rank sum test with continuity correction,two.sided
+h = 0%,s = 0%,350.08,346.24,0.0100022857142857,0.00989257142857143,0.000109714285714284,1%,18245.5,0.129167099971267,Wilcoxon rank sum test with continuity correction,two.sided
+h = 0%,s = 0.1%,1024.31,774.155,0.029266,0.0221187142857143,0.00714728571428571,32%,0,4.78726827997781e-67,Wilcoxon rank sum test with continuity correction,two.sided
+h = 0%,s = 0.3%,2131.66,1270.655,0.0609045714285714,0.0363044285714286,0.0246001428571429,68%,0,4.79880415601065e-67,Wilcoxon rank sum test with continuity correction,two.sided
+h = 0%,s = 1%,4353.9,2089.12,0.124397142857143,0.0596891428571429,0.064708,108%,0,4.8019796379223e-67,Wilcoxon rank sum test with continuity correction,two.sided
+h = 0%,s = -0.03%,197.1,217.63,0.00563142857142857,0.006218,-0.000586571428571428,-9%,33275,1.58464962995394e-30,Wilcoxon rank sum test with continuity correction,two.sided
+h = 0%,s = -0.05%,127.895,147.375,0.00365414285714286,0.00421071428571429,-0.000556571428571428,-13%,35436,1.11955173305013e-40,Wilcoxon rank sum test with continuity correction,two.sided
+h = 0%,s = -0.1%,37.205,45.59,0.001063,0.00130257142857143,-0.000239571428571429,-18%,32678,5.06605370118416e-28,Wilcoxon rank sum test with continuity correction,two.sided
+h = 0%,s = -0.3%,0.04,0.06,1.14285714285714e-06,1.71428571428571e-06,-5.71428571428571e-07,-33%,20494,0.246646307937718,Wilcoxon rank sum test with continuity correction,two.sided
 h = 0%,s = -1%,0,0,0,0,0,NaN%,20000,NA,Wilcoxon rank sum test with continuity correction,two.sided
-h = 0%,s = 0.1%,1166.835,883.515,0.029170875,0.022087875,0.007083,32%,0,4.79644078150816e-67,Wilcoxon rank sum test with continuity correction,two.sided
-h = 100%,s = 0.1%,1914.53,2382.47,0.04786325,0.05956175,-0.0116985,-20%,40000,4.80177688565504e-67,Wilcoxon rank sum test with continuity correction,two.sided
-h = 25%,s = 0.1%,1342.51,1184.835,0.03356275,0.029620875,0.003941875,13%,37.5,8.41651867317612e-67,Wilcoxon rank sum test with continuity correction,two.sided
-h = 50%,s = 0.1%,1519.92,1536.66,0.037998,0.0384165,-0.000418499999999995,-1%,24836,2.88091936217572e-05,Wilcoxon rank sum test with continuity correction,two.sided
-h = 75%,s = 0.1%,1709.97,1942.555,0.04274925,0.048563875,-0.005814625,-12%,40000,4.80434570528386e-67,Wilcoxon rank sum test with continuity correction,two.sided
+h = 0%,s = 0.1%,1023.745,774.46,0.0292498571428571,0.0221274285714286,0.00712242857142857,32%,0,4.78969460935819e-67,Wilcoxon rank sum test with continuity correction,two.sided
+h = 100%,s = 0.1%,1684.59,2115.39,0.0481311428571429,0.0604397142857143,-0.0123085714285714,-20%,40000,4.80745714331817e-67,Wilcoxon rank sum test with continuity correction,two.sided
+h = 25%,s = 0.1%,1168.72,1038.515,0.033392,0.0296718571428571,0.00372014285714285,13%,77.5,1.53109285380525e-66,Wilcoxon rank sum test with continuity correction,two.sided
+h = 50%,s = 0.1%,1330.825,1355.95,0.0380235714285714,0.0387414285714286,-0.000717857142857145,-2%,27872,9.8402892919607e-12,Wilcoxon rank sum test with continuity correction,two.sided
+h = 75%,s = 0.1%,1499.17,1722.33,0.0428334285714286,0.0492094285714286,-0.006376,-13%,40000,4.79833138920603e-67,Wilcoxon rank sum test with continuity correction,two.sided

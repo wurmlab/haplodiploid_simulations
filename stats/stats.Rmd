@@ -9,9 +9,9 @@ output: html_document
 
 
 make_sci <- function(x) {
-    sprintf("%.1fx10^{%d}", 
-          x/10^floor(log10(abs(x))), 
-          floor(log10(abs(x))))  
+    sprintf("%.1fx10^{%d}",
+          x/10^floor(log10(abs(x))),
+          floor(log10(abs(x))))
 }
 
 pretty_number_inner <- function(x) {
@@ -35,7 +35,7 @@ pretty_numbers <- function(x) {
   sapply(x, pretty_number_inner)
 }
 
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = TRUE)
 
 
 library(tidyverse)
@@ -57,7 +57,7 @@ We ran the simulations where we varied the selection coefficient of new mutation
 * Fully recessive deleterious mutations with a range of selection coefficients (S < 0%)
 * Advantageous mutations with a range of dominance coefficients (h)
 
-Each simulation was ran for 50,000 generations. For each simulation, we recorded the number of novel alleles that have become fixed (cumulatively) every 100th generation.
+Each simulation was ran for 40,000 generations after a run-in of 10,000 generations. For each simulation, we recorded the number of novel alleles that have become fixed (cumulatively) every 100th generation.
 
 ```{r input_data}
 
@@ -100,8 +100,7 @@ line_plot_selection <- function(df) {
     xlab("Generation") +
     ylab("Number of fixed mutations") +
     theme_bw()  +
-    theme(panel.spacing = unit(1.4, "lines")) +
-    scale_x_continuous(breaks=c(0, 20000, 40000))
+    theme(panel.spacing = unit(1.4, "lines"))
 }
 
 line_plot_dominance <- function(df) {
@@ -115,7 +114,7 @@ line_plot_dominance <- function(df) {
     xlab("Generation") +
     ylab("Number of fixed mutations") +
     theme_bw() +
-    theme(panel.spacing = unit(1.4, "lines")) + scale_x_continuous(breaks=c(0, 20000, 40000))
+    theme(panel.spacing = unit(1.4, "lines"))
 }
 
 line_plot_selection_mean_sd <- function(df) {
@@ -138,21 +137,38 @@ line_plot_selection_mean_sd <- function(df) {
       scale_x_continuous(breaks=c(0, 20000, 40000))
 }
 
+plot_theme <- theme_bw() +
+  theme(axis.title = element_text(size = 15),
+        axis.text  = element_text(size = 9),
+        strip.text.x = element_text(size = 15),
+        panel.spacing = unit(1.4, "lines"),
+        legend.title = element_text(size=15),
+        legend.text = element_text(size=9))
 
 ```
 
-
 ```{r burnin_function}
-final_generation  <- 50000
-first_generation  <- 10000
-generation_length <- final_generation - first_generation
 
-remove_burnin <- function(df) {
+remove_burnin <- function(df, first_generation) {
   df %>%
+    mutate(number_fixed = as.numeric(number_fixed)) %>%
     select(-simulation_run, -nucleotide_diversity) %>%
     pivot_wider(names_from = generation, values_from = number_fixed) %>%
-    mutate(across(where(is.numeric) & !simulation_id,
-                  ~ .x - `10000`)) %>%
+    as.data.frame() -> df_wide
+
+  ## Rename 'burnin' column
+  colnames(df_wide)[colnames(df_wide) == first_generation] <- "burnin"
+
+  ## Remove number_fixed of first generation from all other generations
+  df_wide %>%
+    mutate(across(where(is.numeric) & !simulation_id, ~ .x - burnin)) %>%
+    as.data.frame() -> df_wide
+
+  ## Rename nurnin colunm back to what it was
+  colnames(df_wide)[colnames(df_wide) == "burnin"] <- first_generation
+
+  ## Pivot to long format and rename each generation
+  df_wide %>%
     pivot_longer(!ploidy:simulation_id, names_to = "generation", values_to = "number_fixed") %>%
     mutate(number_fixed = as.numeric(number_fixed)) %>%
     mutate(generation = as.numeric(generation)) %>%
@@ -161,20 +177,306 @@ remove_burnin <- function(df) {
     return()
 }
 
+```
+
+```{r, cache=FALSE}
+
+
+# Add P-value to plot for printing
+ parse_p <- function(p_value, facetting_var) {
+
+  if (is.na(p_value)) {
+    p_value <- paste("atop('", expr(!!facetting_var), "',",
+                     ")")
+  } else if (p_value >= 0.05) {
+    p_value <- paste("atop('", expr(!!facetting_var), "',",
+                     "'p =", expr(!!round(p_value, 2)),"')")
+  } else if (p_value < 0.05 & p_value >= 0.001) {
+    p_value <- paste("atop('", expr(!!facetting_var), "',",
+                     "'p =", expr(!!round(p_value, 3)),"')")
+  } else {
+    p_value <- paste("atop('", expr(!!facetting_var), "',",
+                     "'p < 10'", "^", expr(!!(floor(log10(abs(p_value))) + 1)),")")
+  }
+  return(p_value)
+}
+
+
+line_plot_selection_with_p <- function(df, p_table) {
+  # Rename ploidy
+  filter(df, simulation_id %in% 1:20) %>%
+    mutate(Ploidy = fct_recode(ploidy,
+                               "Haplodiploid"="haplodiploid",
+                               "Diploid"="diploid")) -> df
+
+  # Make vector with new name for each selection level
+  selection_levels <- levels(df$selection)
+  p_vector         <- p_table$p.value[match(selection_levels, p_table$selection)]
+
+  # Make P value expression
+  p_vector <- sapply(1:length(p_vector), function(i) parse_p(p_vector[i],
+                                                             selection_levels[i]))
+#  selection_with_p        <- "a"
+ # names(selection_with_p) <- selection_levels
+
+  df$selection <- factor(df$selection, labels = p_vector)
+
+  ggplot(df,
+         aes(colour = Ploidy,
+             x = generation,
+             y = number_fixed,
+             group = simulation_group)) +
+    geom_line(alpha = 0.25) +
+    facet_grid(cols = vars(selection),
+               labeller = labeller(selection = label_parsed)) +
+    xlab("Generation") +
+    ylab("Number of fixed mutations") +
+    scale_x_continuous(breaks=c(0, 15000, 30000)) +
+    plot_theme
+}
+
+
+line_plot_dominance_with_p <- function(df, p_table) {
+  # Rename ploidy
+  filter(df, simulation_id %in% 1:20) %>%
+    mutate(Ploidy = fct_recode(ploidy,
+                               "Haplodiploid"="haplodiploid",
+                               "Diploid"="diploid")) -> df
+
+  # Make vector with new name for each dominance level
+  dominance_levels <- levels(df$dominance)
+  p_vector         <- p_table$p.value[match(dominance_levels, p_table$dominance)]
+
+  # Make P value expression
+  p_vector <- sapply(1:length(p_vector), function(i) parse_p(p_vector[i],
+                                                             dominance_levels[i]))
+#  dominance_with_p        <- "a"
+ # names(dominance_with_p) <- dominance_levels
+
+  df$dominance <- factor(df$dominance, labels = p_vector)
+
+  ggplot(df,
+         aes(colour = Ploidy,
+             x = generation,
+             y = number_fixed,
+             group = simulation_group)) +
+    geom_line(alpha = 0.25) +
+    facet_grid(cols = vars(dominance),
+               labeller = labeller(dominance = label_parsed)) +
+    xlab("Generation") +
+    ylab("Number of fixed mutations") +
+    scale_x_continuous(breaks=c(0, 15000, 30000)) +
+    plot_theme
+
+}
 
 ```
 
 ## Simulations with neutral mutations
 
-For the neutral simulation, we expect the haplodiploid and diploid simulations to have the same fixation rate. Below, each line is a single simulation. The rate of fixation is the slope of those lines, or, in other words, the average number of fixed alleles per generation.
+Haplodiploid populations have a lower effective population size than diploid populations. This means that there will be fewer neutral mutations emerging in a haplodiploid population than in a diploid population with the same number of individuals, but that each mutation has a higher chance of becoming fixed. These two processes are expected to balance out, so that there is no difference in substitution rate between populations.
 
 ```{r}
 
-neutral_burnin <- remove_burnin(neutral)
+simulation_length_example <- 50000
+
+expected_fix_rate         <- 1e-7 * 100000
+expected_fix_number       <- expected_fix_rate * simulation_length_example
+
+```
+
+An essential point is that the fixation rate of neutral mutations is equal to the mutation rate. For diploids, the fixation probability of a new mutation is $1/(2N)$ (as it is present in that proportion when it appears) and the number of new mutations per generation is $2N\mu$, so that the fixation rate (fixation probability $\times$ mutation rate per generation) is:
+
+$1/(2N) \times 2N\mu = \mu$
+
+For haplodiploids, the same is true:
+
+$1/(1.5N) \times 1.5N\mu = \mu$
+
+In our simulations, we have a mutation rate of $1\times10^{-7}$ and a genome with $100,000$ loci, giving us an expectation of `r expected_fix_rate` mutations per generation. If we run our simulations for a total of `r simulation_length_example` generations, we would expect a total of `r expected_fix_number` fixed mutations.
+
+Let us start by using a burnin period of 10,000 generations.
+
+```{r}
+
+neutral_burnin <- remove_burnin(neutral, first_generation = 10000)
 
 ```
 
 ```{r plot_fixation_rates_neutral}
+
+neutral_plot <- line_plot_selection(neutral_burnin)
+
+neutral_plot
+
+```
+
+We measure the fixation rate by counting how many mutations have become fixed at the end of the simulation.
+
+```{r}
+
+filter(neutral_burnin, generation == 40000) -> neutral_final
+
+neutral_final %>%
+  select(-simulation_group) %>%
+  pivot_wider(names_from = ploidy, values_from = number_fixed) ->
+  final_neutral_for_wilcox_test
+
+neutral_final %>%
+  group_by(selection, ploidy) %>%
+  summarise(mean = mean(number_fixed)) ->
+  final_neutral_mean
+
+ggplot(neutral_final) +
+  geom_histogram(aes(x = number_fixed, fill = ploidy, colour = ploidy)) +
+  geom_vline(data = final_neutral_mean, aes(xintercept = mean)) +
+  facet_grid(vars(ploidy)) +
+  theme_bw()+
+  xlab("Number of fixed mutations after 40,000 generations")
+
+```
+
+As expected, the average number of fixed alleles per generation is approximately 0.01 for both ploidy types.
+
+```{r}
+
+final_neutral_mean %>%
+  pivot_wider(names_from = ploidy, values_from = mean) %>%
+  mutate(haplodiploid_rate = haplodiploid / 40000,
+         diploid_rate = diploid / 40000,
+         rate_difference = haplodiploid_rate - diploid_rate,
+         difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
+
+as.data.frame(out_df)
+
+```
+
+However, the diploid simulations seem to have slightly fewer fixed mutations than the diploid simulations.
+
+```{r}
+
+final_neutral_for_wilcox_test %>%
+  group_by(selection, dominance) %>%
+  nest() %>%
+  mutate(model = map(data, ~ wilcox.test(.$diploid, .$haplodiploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) -> wilcox_test_out
+
+as.data.frame(wilcox_test_out)
+
+```
+
+### Choose correct burn-in period
+
+In simulations, it can take many generations for drift and mutation to balance. This is likely to explain the slightly smaller number of fixed mutations in the diploid population. This is because difference between haplodiploids and diploids is already quite large after 10000 generations, and it does not seem to increase much more in after another 40,000 generations.
+
+```{r}
+
+make_plot <- function(df, gen) {
+
+  df %>%
+    filter(generation == gen) -> df_sub
+  df_sub %>% group_by(ploidy) %>% summarise(mean = mean(number_fixed)) -> df_mean
+
+  ggplot() +
+    geom_histogram(data = df_sub, aes(x = number_fixed, fill = ploidy), binwidth = 2.5) +
+    geom_vline(data = df_mean, aes(xintercept = mean)) +
+    facet_grid(rows = vars(ploidy), cols = vars(generation)) +
+    theme_bw() +
+    theme(legend.position = "none") %>% return()
+}
+
+p1 <- make_plot(df = neutral, gen = 10000)
+p2 <- make_plot(df = neutral, gen = 50000)
+
+p1 + p2
+
+```
+
+We thus tested whether using larger burn-ins decreased the difference between haplodiploid and diploid simulations:
+
+```{r burnin_test}
+
+neutral_10000 <- remove_burnin(neutral, 10000) %>% mutate(burnin = 10000)
+neutral_11000 <- remove_burnin(neutral, 11000) %>% mutate(burnin = 11000)
+neutral_12500 <- remove_burnin(neutral, 12500) %>% mutate(burnin = 12500)
+neutral_15000 <- remove_burnin(neutral, 15000) %>% mutate(burnin = 15000)
+neutral_20000 <- remove_burnin(neutral, 20000) %>% mutate(burnin = 20000)
+
+rbind(
+filter(neutral_10000, generation == 50000 - 10000),
+filter(neutral_11000, generation == 50000 - 11000),
+filter(neutral_12500, generation == 50000 - 12500),
+filter(neutral_15000, generation == 50000 - 15000),
+filter(neutral_20000, generation == 50000 - 20000)
+) %>%
+  select(-simulation_group) -> burn_ins
+
+burn_ins %>% pivot_wider(names_from = ploidy, values_from = number_fixed) -> burn_ins_wide
+
+burn_ins %>%
+  group_by(burnin, selection, ploidy) %>%
+  summarise(mean = mean(number_fixed)) ->
+  final_neutral_mean
+
+ggplot(burn_ins) +
+  geom_histogram(aes(x = number_fixed, fill = ploidy, colour = ploidy)) +
+  geom_vline(data = final_neutral_mean, aes(xintercept = mean)) +
+  facet_grid(rows = vars(ploidy), cols = vars(burnin)) +
+  theme_bw() +
+  xlab("Number of fixed mutations at the end of simulation run") +
+  ylab("Count") -> burnin_plot
+
+print(burnin_plot)
+
+burn_ins_wide %>%
+  nest(-selection, -burnin) %>%
+  mutate(model = map(data, ~ wilcox.test(.$diploid, .$haplodiploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) -> wilcox_test_out
+
+final_neutral_mean %>%
+  pivot_wider(names_from = ploidy, values_from = mean) %>%
+  mutate(haplodiploid_rate = haplodiploid / (50000 - burnin),
+         diploid_rate = diploid / (50000 - burnin),
+         rate_difference = haplodiploid_rate - diploid_rate,
+         difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
+
+as.data.frame(merge(out_df, wilcox_test_out))
+
+ggsave("results/supp_fig1_burnin.pdf", width=10)
+
+```
+
+From these results, we conclude that using a longer burn-in period decreases the difference between haplodiploids and diploids at the last generation. We therefore take a burn-in of 15,000 hereafter.
+
+
+```{r choose_generation, include=TRUE}
+
+final_generation  <- 50000
+first_generation  <- 15000
+
+simulation_length <- final_generation - first_generation
+
+```
+
+### Neutral simulations
+
+For the neutral simulation, we expect the haplodiploid and diploid simulations to have the same fixation rate. Below, each line is a single simulation. The rate of fixation is the slope of those lines, or, in other words, the average number of fixed alleles per generation.
+
+```{r}
+
+# filter(neutral, simulation == "nonWF") %>%
+#   select(-simulation) %>%
+#   remove_burnin() -> neutral_burnin
+
+neutral_burnin <- remove_burnin(neutral, first_generation = first_generation)
+
+```
+
+```{r}
 
 neutral_plot <- line_plot_selection(neutral_burnin)
 
@@ -189,6 +491,7 @@ To measure the fixation rate, we can look at the average number of fixed alleles
 filter(neutral_burnin, generation == final_generation - first_generation) -> neutral_final
 
 neutral_final %>%
+  select(-simulation_group) %>%
   pivot_wider(names_from = ploidy, values_from = number_fixed) ->
   final_neutral_for_wilcox_test
 
@@ -205,16 +508,14 @@ ggplot(neutral_final) +
 
 ```
 
-An important point, is the the fixation rate of neutral mutations is the mutation rate. For diploids, the fixation probability of a new mutation is $1/(2N)$ (as it is present in that proportion when it appears) and the number of new mutations per generation is $2N\mu$, so that the fixation rate (fixation probability $\times$ mutation rate per generation, $1/(2N) \times 2N\mu$) is simply $\mu$. For haplodiploids, the same is true ($1/(1.5N) \times 1.5N\mu$). In our simulations, we have a mutation rate of $1\times10^{-7}$ and a genome with $100,000$ loci, giving us an expectation of 0.01 mutations per generation, or a total of 500 fixed mutations by generation 50,000.
-
 As expected, the average number of fixed alleles per generation is approximately 0.01 for both ploidy types.
 
 ```{r}
 
 final_neutral_mean %>%
   pivot_wider(names_from = ploidy, values_from = mean) %>%
-  mutate(haplodiploid_rate = haplodiploid / generation_length,
-         diploid_rate = diploid / generation_length,
+  mutate(haplodiploid_rate = haplodiploid / simulation_length,
+         diploid_rate = diploid / simulation_length,
          rate_difference = haplodiploid_rate - diploid_rate,
          difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
 
@@ -223,42 +524,53 @@ as.data.frame(out_df)
 ```
 
 
-We then test if the values are normally distributes:
+We then test if the values are normally distributed:
 
 ```{r}
-
 
 shapiro.test(final_neutral_for_wilcox_test$diploid)
 shapiro.test(final_neutral_for_wilcox_test$haplodiploid)
 
-
 ```
-
-However, there was a significant difference of just under 2% between the two ploidy types.
 
 ```{r}
 
-wilcox.test(final_neutral_for_wilcox_test$diploid, final_neutral_for_wilcox_test$haplodiploid)
-
 final_neutral_for_wilcox_test %>%
-  nest(-selection) %>%
-  mutate(model = map(data, ~ wilcox.test(.$diploid, .$haplodiploid)),
+  group_by(selection) %>%
+  nest() %>%
+  mutate(model   = map(data, ~ wilcox.test(.$diploid, .$haplodiploid)),
          results = map(model, tidy)) %>%
   unnest(results) %>%
   select(-data, -model) -> wilcox_test_out
 
+stopifnot(wilcox_test_out$p.value >= 0.05)
+
+```
+
+As expected, there is no difference between fixation rate of neutral mutations in simulations of haplodiploid and diploid populations.
+
+```{r}
+
 neutral_merged <- merge(out_df, wilcox_test_out)
+as.data.frame(neutral_merged)
+
+```
+
+```{r, cache=FALSE}
+
+neutral_plot <- line_plot_selection_with_p(neutral_burnin, wilcox_test_out)
+neutral_plot
 
 ```
 
 ## Simulations with advantageous mutations
 
-For the simulation where all mutations were advantageous, we expect the haplodiploid populations to fix alleles quicker, where the males (which are haploid) are under selection as soon as the mutation appears, whereas the mutation needs to be at high enough frequency to be in homozygous individuals before it is under selection. This is obvious in the simulations with the most highly advantageous mutations (S = +10%). 
+For the simulation where all mutations were advantageous, we expect the haplodiploid populations to fix alleles quicker, where the males (which are haploid) are under selection as soon as the mutation appears, whereas the mutation needs to be at high enough frequency to be in homozygous individuals before it is under selection. This is obvious in the simulations with the most highly advantageous mutations (S = +10%).
 
 
 ```{r}
 
-advantageous_burnin <- remove_burnin(advantageous)
+advantageous_burnin <- remove_burnin(advantageous, first_generation = first_generation)
 
 ```
 
@@ -299,8 +611,8 @@ The fixation rate is higher than in the neutral simulations for all classes. As 
 
 advantageous_mean %>%
   pivot_wider(names_from = ploidy, values_from = mean) %>%
-  mutate(haplodiploid_rate = haplodiploid / generation_length,
-         diploid_rate = diploid / generation_length,
+  mutate(haplodiploid_rate = haplodiploid / simulation_length,
+         diploid_rate = diploid / simulation_length,
          rate_difference = haplodiploid_rate - diploid_rate,
          difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
 
@@ -308,29 +620,24 @@ as.data.frame(out_df)
 
 ```
 
-All comparisons are statistically significant:
+The fixation rates are not normally distributed:
 
 ```{r}
 
-
-shapiro.test(final_neutral_for_wilcox_test$diploid)
-shapiro.test(final_neutral_for_wilcox_test$haplodiploid)
-
-
-advantageous_for_wilcox_test %>%
-  nest(-selection) %>%
-  mutate(model = map(data, ~ shapiro.test(.$haplodiploid)),
+advantageous_final %>%
+  group_by(ploidy, selection) %>%
+  nest() %>%
+  mutate(model = map(data, ~ shapiro.test(.$number_fixed)),
          results = map(model, tidy)) %>%
   unnest(results) %>%
-  select(-data, -model) 
+  select(-data, -model) %>%
+  mutate()
 
-advantageous_for_wilcox_test %>%
-  nest(-selection) %>%
-  mutate(model = map(data, ~ shapiro.test(.$diploid)),
-         results = map(model, tidy)) %>%
-  unnest(results) %>%
-  select(-data, -model) 
+```
 
+All comparisons are statistically significant:
+
+```{r}
 
 advantageous_for_wilcox_test %>%
   nest(-selection) %>%
@@ -345,13 +652,21 @@ advantageous_merged <- merge(out_df, wilcox_test_out)
 
 ```
 
+```{r, cache=FALSE}
+
+advantageous_plot <- line_plot_selection_with_p(advantageous_burnin, wilcox_test_out)
+
+advantageous_plot
+
+```
+
 ## Simulations with deleterious mutations
 
 For the deleterious mutations, we expect that the fixation rate will be lower than that of neutral or advantageous mutations. Interestingly, none of of the highly deleterious mutations (S=-10%) was fixed in the population.
 
 ```{r}
 
-deleterious_burnin <- remove_burnin(deleterious)
+deleterious_burnin <- remove_burnin(deleterious, first_generation = first_generation)
 
 ```
 
@@ -389,11 +704,10 @@ The difference between haplodiploid and diploid observed for midly deleterious m
 
 ```{r}
 
-
 deleterious_mean %>%
   pivot_wider(names_from = ploidy, values_from = mean) %>%
-  mutate(haplodiploid_rate = haplodiploid / generation_length,
-         diploid_rate = diploid / generation_length,
+  mutate(haplodiploid_rate = haplodiploid / simulation_length,
+         diploid_rate = diploid / simulation_length,
          rate_difference = haplodiploid_rate - diploid_rate,
          difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
 
@@ -402,34 +716,61 @@ as.data.frame(out_df)
 
 ```
 
-However, the difference observed for the weakly deleterious mutations is not significant.
+The number of fixed mutations is normally distributed for some of the simulations, but this is not a sufficient justification to use a t-test instead of a Wilcoxon rank sum for these simulations only:
 
 ```{r}
 
-deleterious_for_wilcox_test %>%
+deleterious_final %>%
   filter(selection != "s = -1%") %>%
-  nest(-selection) %>%
-  mutate(model = map(data, ~ shapiro.test(.$haplodiploid)),
+  group_by(ploidy, selection) %>%
+  nest() %>%
+  mutate(model = map(data, ~ shapiro.test(.$number_fixed)),
          results = map(model, tidy)) %>%
   unnest(results) %>%
-  select(-data, -model) 
+  select(-data, -model) %>%
+  mutate(p.value = round(p.value, 5))
 
-deleterious_for_wilcox_test %>%
-  filter(selection != "s = -1%") %>%
-  nest(-selection) %>%
-  mutate(model = map(data, ~ shapiro.test(.$diploid)),
-         results = map(model, tidy)) %>%
-  unnest(results) %>%
-  select(-data, -model) 
+```
+
+However, the difference observed for the weakly deleterious mutations is not significant.
+
+```{r}
 
 deleterious_for_wilcox_test %>%
   nest(-selection) %>%
   mutate(model = map(data, ~ wilcox.test(.$diploid, .$haplodiploid)),
          results = map(model, tidy)) %>%
   unnest(results) %>%
-  select(-data, -model) -> wilcox_test_out
+  select(-data, -model) -> wilcox_test_out_deleterious
 
-deleterious_merged <- merge(out_df, wilcox_test_out)
+deleterious_merged <- merge(out_df, wilcox_test_out_deleterious)
+
+as.data.frame(deleterious_merged)
+
+```
+
+The simulation with more deleterious mutations have very few mutations becoming fixed.
+
+```{r}
+
+deleterious_final %>%
+  group_by(selection, ploidy) %>%
+  summarise(simulations_with_fixed_mutations = sum(number_fixed > 0))
+
+```
+
+For the simulation where `s = -0.3%`, these simulation runs had one or more mutations becoming fixed.
+
+```{r}
+deleterious_final %>%
+  filter(selection == "s = -0.3%", number_fixed > 0) %>%
+  select(selection, ploidy, simulation_id, number_fixed)
+
+```
+
+```{r, cache=FALSE, fig.width=12}
+
+deleterious_plot <- line_plot_selection_with_p(deleterious_burnin, wilcox_test_out_deleterious)
 
 ```
 
@@ -446,16 +787,11 @@ read_path("input/dominance_mutations_s001.csv") %>%
   mutate(dominance = fct_relevel(dominance, "h = 0%", "h = 25%", "h = 50%", "h = 75%", "h = 100%")) ->
   dominant
 
-
-final_generation  <- 50000
-first_generation  <- 10000
-generation_length <- final_generation - first_generation
-
 ```
 
 ```{r}
 
-dominant_burnin <- remove_burnin(dominant)
+dominant_burnin <- remove_burnin(dominant, first_generation = first_generation)
 
 ```
 
@@ -493,8 +829,8 @@ ggplot(dominant_final) +
 
 dominant_mean %>%
   pivot_wider(names_from = ploidy, values_from = mean) %>%
-  mutate(haplodiploid_rate = haplodiploid / generation_length,
-         diploid_rate = diploid / generation_length,
+  mutate(haplodiploid_rate = haplodiploid / simulation_length,
+         diploid_rate = diploid / simulation_length,
          rate_difference = haplodiploid_rate - diploid_rate,
          difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
 
@@ -519,27 +855,52 @@ dominance_merged <- merge(out_df, wilcox_test_dominance)
 
 ```
 
+```{r}
+
+dominant_final %>%
+  group_by(ploidy, dominance, selection) %>%
+  nest() %>%
+  mutate(model = map(data, ~ shapiro.test(.$number_fixed)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) %>%
+  mutate()
+
+```
+
+
+```{r dominance_paper_fig, cache=FALSE}
+
+dominance_plot <- line_plot_dominance_with_p(dominant_burnin, wilcox_test_dominance)
+dominance_plot
+
+```
+
+
 ## Make figures for manuscript
 
-```{r}
+We remake the deleterious figure, as we do not want to include simulations with strongly deleterious mutations, in which almost no simulation had any fixed mutation.
+
+```{r print_paper_figs, cache=FALSE}
 
 require(gridExtra)
 
-
 pdf("results/figure1_A_B.pdf", width = 9, height = 3)
-grid.arrange(neutral_plot + theme(legend.position = "none", plot.margin = unit(c(0.5,7.4,0.5,0.5), "lines")),
+grid.arrange(neutral_plot + theme(plot.margin = unit(c(0.5,0.7,0.5,0.5), "lines")),
              advantageous_plot + theme(legend.position = "none", plot.margin = unit(c(0.5,0.2,0.5,0.5), "lines")),
              ncol=2, widths = c(2,3+0.2))
 dev.off()
 
 pdf("results/figure1_C.pdf", width = 9, height = 3)
-deleterious_plot + theme(plot.margin = unit(c(0.5,3,0.5,0.5), "lines"))
+deleterious_plot + theme(legend.position = "none")
+# grid.arrange(neutral_plot + theme(plot.margin = unit(c(0.5,0.7,0.5,0.5), "lines")),
+#              deleterious_plot + theme(legend.position = "none", plot.margin = unit(c(0.5,0.2,0.5,0.5), "lines")),
+#              ncol=2, widths = c(2,3+0.2))
 dev.off()
 
 pdf("results/figure1_D.pdf", width = 9, height = 3)
 dominance_plot + theme(legend.position = "none")
 dev.off()
-
 
 ```
 
@@ -554,3 +915,75 @@ rbind(cbind(dominance = "h = 0%",
 
 ```
 
+## Wright-Fisher versus non-Wright-Fisher
+
+We want to show that the non-Wright-Fisher simulations of diploid populations are equivalent Wright-Fisher simulations. We re-ran the simulations of adaptive alleles using a simple Wright-Fisher model.
+
+```{r}
+
+wf_path <- "input/wf_advantageous_mutations_h0.csv"
+
+# WF simulations (diploid only)
+advantageous_wf      <- read_path("input/wf_advantageous_mutations_h0.csv")
+advantageous_wf      <- remove_burnin(advantageous_wf, first_generation = first_generation)
+advantageous_wf$type <- "WF"
+
+# non-WF simulations (diploid only)
+advantageous_nwf      <- rbind(
+  filter(advantageous_burnin, ploidy == "diploid"),
+  filter(neutral_burnin,      ploidy == "diploid")
+)
+advantageous_nwf$type <- "nWF"
+
+# Bind them
+rbind(advantageous_nwf, advantageous_wf) %>%
+  mutate(selection = fct_relevel(selection, "s = 0%")) -> wf_vs_nwf
+
+# Final generation for both types
+filter(wf_vs_nwf, generation == final_generation - first_generation) -> wf_final
+
+# Wilcoxon rank-sum test between WF and nonWF for each
+wf_final %>%
+  pivot_wider(names_from = type, values_from = number_fixed) ->
+  wf_for_wilcox_test
+
+wf_for_wilcox_test %>%
+  nest(-selection) %>%
+  mutate(model = map(data, ~ wilcox.test(.$WF, .$nWF)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) -> wilcox_test_out
+
+# Plot the distributions
+wf_final %>%
+  group_by(selection, type) %>%
+  summarise(mean = mean(number_fixed)) ->
+  wf_mean
+
+ggplot(wf_final) +
+  geom_histogram(aes(x = number_fixed, fill = type)) +
+  geom_vline(data = wf_mean, aes(xintercept = mean)) +
+  facet_grid(vars(type), vars(selection)) +
+  scale_fill_manual(values = c("cornflowerblue", "gold3")) +
+  theme_bw() -> supp_plot_nwf
+
+# Print output
+print(supp_plot_nwf)
+
+as.data.frame(wilcox_test_out)
+
+ggsave(supp_plot_nwf, file = "results/supp_fig1_nwf_vs_wf.pdf", width=9, height = 4.5)
+
+```
+
+## Test with ci
+
+```{r}
+line_plot_selection_mean_sd(deleterious_burnin) -> plowilcox_test
+
+dir.create("results/alternative_figure")
+pdf("results/alternative_figure/figure1_C.pdf", width = 9, height = 3)
+plowilcox_test + theme(plot.margin = unit(c(0.5,3,0.5,0.5), "lines"))
+dev.off()
+
+```

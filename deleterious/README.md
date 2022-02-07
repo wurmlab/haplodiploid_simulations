@@ -1,6 +1,6 @@
 # Simulations of populations with deleterious mutations
 
-We created a framework to simulate haplodiploid populations in the SLiM simulation framework. Here, we run simulations of populations with recessive deleterious mutations under a range of selective coefficients. The scripts used are the `slim_scripts` directory.  
+We created a framework to simulate haplodiploid populations in the SLiM simulation framework. Here, we run simulations of populations with recessive deleterious mutations under a range of selective coefficients. The scripts used are the [`slim_scripts`](slim_scripts/) directory, and the results of the simulation run in the [`results`](results/) directory.
 
 ## Parse simulation results
 
@@ -11,13 +11,13 @@ We parsed the simulation results:
 mkdir -p results/outputs
 # manually move SLiM outputs to there
 
-module load ruby
+module load R parallel ruby
 
 ls results/outputs \
   | cut -f 2 -d "/" \
   | ruby -pe 'gsub(/-output/, "")' \
   | parallel "grep -A50000 -m1 -e 'Generation, FixedMutations, NucleotideHeterozygosity' \
-  results/outputs/{}*/* | grep -v 'Generation' \
+  results/outputs/{}-output/* | grep -v 'Generation' \
   | grep -v '^--'| cut -f 4- -d '/' > results/{}_tmp"
 
 ```
@@ -61,11 +61,7 @@ parsed_df <- lapply(to_parse, function(path) parse_df(path))
 parsed_df <- do.call(rbind, parsed_df)
 
 parsed_df$selection <- as.character(parsed_df$selection)
-parsed_df$selection[parsed_df$selection == "s000"]   <- "0"
-parsed_df$selection[parsed_df$selection == "s-0005"] <- "-0.0005"
-parsed_df$selection[parsed_df$selection == "s-001"]  <- "-0.001"
-parsed_df$selection[parsed_df$selection == "s-003"]  <- "-0.003"
-parsed_df$selection[parsed_df$selection == "s-010"]  <- "-0.010"
+parsed_df$selection <- gsub("s-", "-0.", parsed_df$selection)
 
 write.csv(parsed_df,
           file="results/deleterious_mutations_h0.csv",
