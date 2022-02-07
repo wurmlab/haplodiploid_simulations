@@ -10,6 +10,5 @@
 #$ -t 1-200
 #$ -tc 200
 
-module load slim
-
-slim slim_scripts/haplodiploid_h0_s001.slim
+# SLiM version >3.6
+$HOME/2021-10-slim_dev/build/slim slim_scripts/haplodiploid_h0_s001.slim

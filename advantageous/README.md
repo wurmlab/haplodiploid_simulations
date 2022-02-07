@@ -36,6 +36,37 @@ parse_df <- function(path) {
   to_return <- data.frame(
     ploidy = ploidy,
     dominance = dominance,
+    selection = sele
+```sh
+
+ls results/outputs | cut -f 1 -d "-" \
+  | parallel "grep -A50000 -m1 -e 'Generation, FixedMutations, NucleotideHeterozygosity' \
+    results/outputs/{}*/* | grep -v 'Generation' \
+    | grep -v '^--'| cut -f 4- -d '/' > results/{}_tmp"
+
+```
+
+```r
+
+parse_df <- function(path) {
+  df <- read.table(file.path("results",path))
+  id <- as.character(df$V1)
+  split_id <- strsplit(id, split = "_")
+
+  ploidy    <- sapply(split_id, function(x) x[1])
+  dominance <-  sapply(split_id, function(x) x[2])
+
+  id <- sapply(split_id, function(x) x[3])
+  split_id <- strsplit(id, split = "\\.")
+
+  selection <- sapply(split_id, function(x) x[1])
+
+  simulation_id <- sapply(split_id, function(x) paste(x[2], gsub("-.*", "", x[3]), sep = "_"))
+  generation    <- sapply(split_id, function(x) gsub(".*-", "", x[3]))
+
+  to_return <- data.frame(
+    ploidy = ploidy,
+    dominance = dominance,
     selection = selection,
     simulation_id = simulation_id,
     generation = generation,
@@ -61,4 +92,4 @@ parsed_df$selection[parsed_df$selection == "s010"] <- "0.010"
 write.csv(parsed_df, file="results/advantageous_mutations_h0.csv",
 row.names=FALSE, quote=FALSE)
 
-```
+`
