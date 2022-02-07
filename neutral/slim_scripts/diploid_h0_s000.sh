@@ -6,10 +6,8 @@
 #$ -m s
 #$ -pe smp 1
 #$ -l h_vmem=500M
-#$ -l h_rt=1:0:0
+#$ -l h_rt=2:0:0
 #$ -t 1-200
 #$ -tc 200
 
-module load slim
-
-slim slim_scripts/diploid_h0_s000.slim
+$HOME/2021-10-slim_dev/build/slim slim_scripts/diploid_h0_s000.slim
