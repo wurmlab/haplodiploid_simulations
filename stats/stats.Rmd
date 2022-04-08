@@ -876,6 +876,76 @@ dominance_plot
 
 ```
 
+### Varying levels of dominance coefficient with the same Ne
+
+Haplodiploid populations have 1.5N chromosomes in the population, whereas diploid populations have 2N chromosomes. We re-ran the haplodiploid simulations with a larger population size (K = 2667).
+
+```{r}
+
+read_path("input/nedominance_mutations_s001.csv") %>%
+  mutate(dominance = fct_relevel(dominance, "h = 0%", "h = 25%", "h = 50%", "h = 75%", "h = 100%")) ->
+  dominant_samene
+
+dominant_samene <- remove_burnin(dominant_samene, first_generation = first_generation)
+
+# Add to previous diploid simulations
+dominant_samene      <- rbind(
+  dominant_samene,
+  filter(dominant_burnin, ploidy == "diploid")
+)
+
+
+# Final generation for both types
+filter(dominant_samene, generation == final_generation - first_generation) -> samene_final
+
+# Wilcoxon rank-sum test between haplodiploid and diploid for each
+samene_final %>%
+  pivot_wider(names_from = ploidy, values_from = number_fixed) ->
+  samene_for_wilcox_test
+
+samene_for_wilcox_test %>%
+  nest(-selection, -dominance, simulation_id, generation, diploid, haplodiploid) %>%
+  mutate(model = map(data, ~ wilcox.test(.$diploid, .$haplodiploid)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  select(-data, -model) -> wilcox_test_out
+
+# Plot the distributions
+samene_final %>%
+  group_by(dominance, ploidy) %>%
+  summarise(mean = mean(number_fixed)) ->
+  samene_mean
+
+ggplot(samene_final) +
+  geom_histogram(aes(x = number_fixed, fill = ploidy)) +
+  geom_vline(data = samene_mean, aes(xintercept = mean)) +
+  facet_grid(vars(ploidy), vars(dominance)) +
+  theme_bw() -> histogram_samene
+
+# Print output
+print(histogram_samene)
+
+
+samene_plot <- line_plot_dominance_with_p(dominant_samene, wilcox_test_out)  + theme(legend.position="bottom")
+ggsave(samene_plot, file = "results/supp_figX_dominance_same_ne.pdf", width=11, height = 5)
+print(samene_plot)
+
+```
+
+```{r}
+
+samene_mean %>%
+  pivot_wider(names_from = ploidy, values_from = mean) %>%
+  mutate(haplodiploid_rate = haplodiploid / simulation_length,
+         diploid_rate = diploid / simulation_length,
+         rate_difference = haplodiploid_rate - diploid_rate,
+         difference_per = paste0(round(100 * rate_difference / diploid_rate), "%")) -> out_df
+
+dominance_merged <- merge(out_df, wilcox_test_out)
+
+as.data.frame(dominance_merged)
+
+```
 
 ## Make figures for manuscript
 
