@@ -1,0 +1,127 @@
+initialize() {
+	initializeSLiMModelType("nonWF");
+	defineConstant("K", 50000);
+
+	initializeMutationRate(1e-7);
+  initializeMutationType("m1", 0.0, "f", 0.001);
+	m1.convertToSubstitution = T;		// converts mutations that have become fixed into substitutions
+	m1.haploidDominanceCoeff = 1.0;	// haploid dosage coefficient
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 4999999);
+	initializeRecombinationRate(1e-6);
+	initializeSex("A");
+}
+
+reproduction(p1) {
+	// generate K offspring in subpop, in one "big bang"
+	inds = subpop.individuals;
+	is_female = (inds.sex == "F");
+	is_male = !is_female;
+	females = inds[is_female];
+	males = inds[is_male];
+	chr = sim.chromosome;
+
+	fit = subpop.cachedFitness(NULL);
+	femWeights = fit[is_female];
+	maleWeights = fit[is_male];
+
+	// Mothers of haploid males
+	sampledFemalesHap = sample(females, asInteger(K/2), replace = T, weights = femWeights);
+
+	// Parents of diploid females
+	sampledFemalesDip = sample(females, asInteger(K/2), replace = T, weights = femWeights);
+	sampledMales = sample(males, asInteger(K/2), T, weights = maleWeights);
+
+	// Create haploid males from unfertilised eggs:
+	//  one genome results from the recombination of the mother's diploid genome
+	//  the second genome is kept empty
+	for (sampledFemale in sampledFemalesHap) {
+		breaks = chr.drawBreakpoints(sampledFemale);
+		if (rbinom(1, 1, 0.5))
+			subpop.addRecombinant(strand1 = sampledFemale.genome1,
+				strand2 = sampledFemale.genome2,
+				breaks1 = breaks,
+				strand3 = NULL,
+				strand4 = NULL,
+				breaks2 = NULL,
+				sex = "M");
+		else
+			subpop.addRecombinant(strand1 = sampledFemale.genome2,
+				strand2 = sampledFemale.genome1,
+				breaks1 = breaks,
+				strand3 = NULL,
+				strand4 = NULL,
+				breaks2 = NULL,
+				sex = "M");
+	}
+
+	// Create diploid females from fertilised eggs:
+	//  one genome results from the recombination of the mother's diploid genome
+	//  the second genome is the father's haploid genome
+	for (i in seqAlong(sampledFemalesDip)) {
+		sampledFemale = sampledFemalesDip[i];
+		sampledMale = sampledMales[i];
+		breaks = chr.drawBreakpoints(sampledFemale);
+		if (rbinom(1, 1, 0.5))
+			subpop.addRecombinant(strand1 = sampledFemale.genome1,
+				strand2 = sampledFemale.genome2,
+				breaks1 = breaks,
+				strand3 = sampledMale.genome1,
+				strand4 = NULL,
+				breaks2 = NULL,
+				sex = "F");
+		else
+			subpop.addRecombinant(strand1 = sampledFemale.genome2,
+				strand2 = sampledFemale.genome1,
+				breaks1 = breaks,
+				strand3 = sampledMale.genome1,
+				strand4 = NULL,
+				breaks2 = NULL,
+				sex = "F");
+	}
+
+	self.active = 0;
+}
+
+1 {
+	sim.addSubpop("p1", K);
+
+	// print a header for the output table we will generate
+	catn("Generation, FixedMutations, NucleotideHeterozygosity");
+}
+
+survival()
+{
+	// non-overlapping generations, avoid fitness-based mortality
+	return (individual.age == 0);
+}
+
+10000: late() {
+	if (sim.generation % 100 == 0)
+	{
+		inds = sim.subpopulations.individuals;
+		fixedCount = sim.substitutions.size();
+
+		// find the average heterozygosity across all individuals
+		total = 0.0;
+		length = sim.chromosome.lastPosition + 1;
+		for (ind in inds)
+		{
+			// calcPairHeterozygosity() doesn't like being called on haploids,
+			// since they're not "heterozygous" but rather have no zygosity;
+			// the access of the null second genome is illegal.  So, we consider
+			// males to be heterozygous for every mutation.
+			if (ind.sex == "M")
+				total = total + size(ind.genome1) / length;
+			else
+				total = total + calcPairHeterozygosity(ind.genome1, ind.genome2);
+		}
+		pi = total / inds.size();
+
+		catn(sim.generation + " " + fixedCount + " " + pi);
+	}
+}
+
+50000 late() {
+	sim.simulationFinished();
+}
